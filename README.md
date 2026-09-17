@@ -42,6 +42,7 @@ Kotlin + Jetpack Compose 原生实现，不加载 `hdao.tv` 网页。
 - 手机版 Hero 每 6 秒自动轮播，并支持手势左右切换；
 - 手机版“剧集”内含剧集、综艺、纪录片、动漫和短剧五个独立分类；
 - 手机与 TV 使用统一的海浪、岛屿与电影光圈品牌图标；
+- TV 启动时自动检查 GitHub 最新版本，可直接下载、校验并交给系统安装器升级；
 - 家庭客户端不展示网页中指向外部成人站点的“午夜场”入口；
 - Android 7.0（API 24）及以上，目标 API 35；
 - 应用 ID 保持为 `tv.hdao.app`，可覆盖安装旧 WebView 版。
@@ -77,6 +78,7 @@ preview/     Google TV 模拟器真实运行截图
 | TV v3.3.6 | `dist/Hazix-TV-v3.3.6.apk` | 软件更名为 Hazix；电视与手机版内容页仅显示图标，不显示软件名称 |
 | TV v3.3.7 | `dist/Hazix-TV-v3.3.7.apk` | 首页仅保留最近热播与最近观看；分类页改为无缝加载 |
 | TV v3.3.8 | `dist/Hazix-TV-v3.3.8.apk` | 修复切换分类后分页状态未重建，导致剧集、综艺、纪录片、动漫与短剧只有第一页 |
+| TV v3.3.9 | `dist/Hazix-TV-v3.3.9.apk` | 增加 GitHub Release 在线更新，下载后校验 SHA-256、应用 ID 与签名证书 |
 
 后续发布只新增带版本号的 APK，不覆盖或删除历史包。校验值见
 `dist/SHA256SUMS.txt`。
@@ -130,13 +132,24 @@ mobileapp/build/outputs/apk/release/mobileapp-release.apk
 `ANDROID_DEBUG_KEYSTORE_BASE64`，内容为当前本机 debug keystore 的 Base64。签名文件本身以及
 Base64 内容都不得提交到 Git；工作流只在运行器临时目录内还原，任务结束后由 GitHub 销毁。
 
+## 在线更新
+
+TV 客户端每次启动会读取本仓库的最新正式 GitHub Release。发现更高版本后，可用遥控器直接
+下载更新；客户端会依次核对 Release 下载来源、APK 大小、`SHA256SUMS.txt`、应用 ID、版本号和
+签名证书，全部通过后才会打开 Android 系统安装器。
+
+由于这是侧载应用而不是 Google Play 应用，Android 不允许普通应用静默升级。第一次使用在线
+更新时，需要在电视系统设置中允许 Hazix“安装未知来源应用”，之后每次升级仍需在系统安装器中
+确认一次。已经安装的 v3.3.8 不包含更新模块，因此需要最后一次通过 U 盘安装 v3.3.9；从后续
+版本开始即可直接在应用内更新。
+
 ## 安装
 
 在电视上允许当前文件管理器安装未知来源应用后，通过 U 盘安装
-`dist/Hazix-TV-v3.3.8.apk`；或在标准 Android TV 已开启 ADB 调试后执行：
+`dist/Hazix-TV-v3.3.9.apk`；或在标准 Android TV 已开启 ADB 调试后执行：
 
 ```bash
-adb install -r dist/Hazix-TV-v3.3.8.apk
+adb install -r dist/Hazix-TV-v3.3.9.apk
 ```
 
 TCL/雷鸟系统可能拦截通用 `adb install`，本项目实机升级改用系统自带的

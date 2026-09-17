@@ -4,8 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse("3.3.8")
-val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(16)
+val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse("3.3.9")
+val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(17)
 
 android {
     namespace = "tv.hdao.app"
@@ -41,7 +41,10 @@ android {
     }
 
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     lint {
         abortOnError = true

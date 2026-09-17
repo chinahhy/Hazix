@@ -112,5 +112,7 @@ fun HdaoTvApp() {
                 modifier = Modifier.align(Alignment.TopStart).zIndex(20f),
             )
         }
+
+        UpdateCoordinator()
     }
 }
