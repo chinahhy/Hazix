@@ -27,16 +27,32 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
+      - name: Detect an already published tag release
+        id: existing-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]] && gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "Release ${GITHUB_REF_NAME} is already published; no cloud rebuild is needed."
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Set up Java 17
+        if: steps.existing-release.outputs.skip != 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
+        if: steps.existing-release.outputs.skip != 'true'
         uses: gradle/actions/setup-gradle@v6
 
       - name: Resolve version
+        if: steps.existing-release.outputs.skip != 'true'
         id: version
         shell: bash
         env:
@@ -60,6 +76,7 @@ jobs:
           echo "version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore APK signing key
+        if: steps.existing-release.outputs.skip != 'true'
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
@@ -74,6 +91,7 @@ jobs:
           chmod 600 "${HOME}/.android/debug.keystore"
 
       - name: Lint and build release APK
+        if: steps.existing-release.outputs.skip != 'true'
         shell: bash
         run: >-
           ./gradlew
@@ -84,6 +102,7 @@ jobs:
           -PVERSION_CODE=${{ steps.version.outputs.version_code }}
 
       - name: Verify and stage release files
+        if: steps.existing-release.outputs.skip != 'true'
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -95,6 +114,7 @@ jobs:
           sha256sum "Hazix-TV-v${VERSION}.apk" > SHA256SUMS.txt
 
       - name: Upload workflow artifact
+        if: steps.existing-release.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Hazix-TV-v${{ steps.version.outputs.version }}
@@ -103,6 +123,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
+        if: steps.existing-release.outputs.skip != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
