@@ -1,0 +1,16 @@
+{
+  "name": "hdao-web-preview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check public/app.js && node --check public/preview.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "hls.js": "1.7.3"
+  }
+}

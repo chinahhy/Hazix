@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hazix</string>
+    <string name="loading_message">Opening…</string>
+    <string name="load_error">Unable to load the page\nPress OK to retry</string>
+    <string name="external_link_blocked">Only hdao.tv pages are available in this app</string>
+    <string name="cursor_mode">Cursor mode</string>
+    <string name="focus_mode">Focus navigation</string>
+    <string name="press_back_again">Press Back again to exit</string>
+
+    <style name="Theme.HdaoTV" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#080B12</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:colorAccent">#FF7043</item>
+        <item name="android:navigationBarColor">#080B12</item>
+        <item name="android:statusBarColor">#080B12</item>
+    </style>
+</resources>

@@ -1,0 +1,16 @@
+.gradle/
+.tooling/
+.kotlin/
+local.properties
+**/build/
+*.iml
+.idea/
+.DS_Store
+*.jks
+*.keystore
+web/node_modules/
+.pnpm-store/
+**/.pnpm-store/
+dist/*.apk
+preview/
+*.log

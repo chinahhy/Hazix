@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网页预览</title><link rel="icon" href="/brand.png"><link rel="stylesheet" href="/preview.css"></head>
+<body>
+  <header class="preview-bar">
+    <div class="preview-brand"><img src="/brand.png" alt=""></div>
+    <div class="view-switch" role="group" aria-label="预览设备"><button data-view="tv" aria-pressed="true">电视视图</button><button data-view="mobile" aria-pressed="false">手机视图</button></div>
+    <span class="preview-hint" id="hint">方向键移动 · Enter 确认 · Esc 返回</span>
+  </header>
+  <main class="preview-stage" id="stage"><iframe id="preview" src="/app.html" title="内容预览" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></main>
+  <script src="/preview.js"></script>
+</body></html>

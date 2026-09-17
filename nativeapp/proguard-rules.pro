@@ -1,0 +1,2 @@
+-keep class tv.hdao.app.data.** { *; }
+-dontwarn org.checkerframework.**
