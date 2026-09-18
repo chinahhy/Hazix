@@ -6,8 +6,28 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      android-dependencies:
+      android-build-toolchain:
+        patterns:
+          - "com.android.application"
+          - "org.jetbrains.kotlin.*"
+          - "gradle-wrapper"
+        update-types:
+          - minor
+          - patch
+      android-libraries:
         patterns: ["*"]
+        exclude-patterns:
+          - "com.android.application"
+          - "org.jetbrains.kotlin.*"
+          - "gradle-wrapper"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Major Android toolchain and library upgrades need an explicit migration.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: npm
     directory: "/web"
@@ -17,6 +37,13 @@ updates:
     groups:
       web-dependencies:
         patterns: ["*"]
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: "/"
