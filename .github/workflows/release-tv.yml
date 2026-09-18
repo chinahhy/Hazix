@@ -29,7 +29,6 @@ jobs:
     timeout-minutes: 30
     env:
       EXPECTED_SIGNER_SHA256: 6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1
-      HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
 
     steps:
       - name: Check out source
@@ -88,6 +87,7 @@ jobs:
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
         run: |
           if [[ -z "${KEYSTORE_BASE64}" ]]; then
             echo "::error::ANDROID_DEBUG_KEYSTORE_BASE64 is not configured"
@@ -113,6 +113,8 @@ jobs:
       - name: Lint and build release APK
         if: steps.existing-release.outputs.skip != 'true'
         shell: bash
+        env:
+          HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
         run: >-
           ./gradlew
           :nativeapp:lintRelease
@@ -126,6 +128,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
         run: |
           mkdir -p release
           cp nativeapp/build/outputs/apk/release/nativeapp-release.apk "release/Hazix-TV-v${VERSION}.apk"
