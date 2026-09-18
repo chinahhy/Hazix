@@ -10,6 +10,11 @@ on:
         description: "Version without the v prefix, for example 3.3.8"
         required: true
         type: string
+      publish:
+        description: "Publish a GitHub Release after the signed build succeeds"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -123,7 +128,9 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: steps.existing-release.outputs.skip != 'true'
+        if: >-
+          steps.existing-release.outputs.skip != 'true' &&
+          (github.event_name != 'workflow_dispatch' || inputs.publish)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
