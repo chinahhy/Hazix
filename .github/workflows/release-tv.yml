@@ -27,6 +27,8 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      EXPECTED_SIGNER_SHA256: 6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1
 
     steps:
       - name: Check out source
@@ -95,6 +97,19 @@ jobs:
           printf '%s' "${KEYSTORE_BASE64}" | base64 --decode > "${HOME}/.android/debug.keystore"
           chmod 600 "${HOME}/.android/debug.keystore"
 
+          KEYSTORE_SIGNER_SHA256=$(
+            keytool -exportcert \
+              -keystore "${HOME}/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey |
+              sha256sum |
+              awk '{print $1}'
+          )
+          if [[ "${KEYSTORE_SIGNER_SHA256}" != "${EXPECTED_SIGNER_SHA256}" ]]; then
+            echo "::error::Configured signing key does not match the installed-app upgrade chain"
+            exit 1
+          fi
+
       - name: Lint and build release APK
         if: steps.existing-release.outputs.skip != 'true'
         shell: bash
@@ -115,6 +130,14 @@ jobs:
           mkdir -p release
           cp nativeapp/build/outputs/apk/release/nativeapp-release.apk "release/Hazix-TV-v${VERSION}.apk"
           "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --verbose "release/Hazix-TV-v${VERSION}.apk"
+          APK_SIGNER_SHA256=$(
+            "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --print-certs "release/Hazix-TV-v${VERSION}.apk" |
+              awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2}'
+          )
+          if [[ "${APK_SIGNER_SHA256}" != "${EXPECTED_SIGNER_SHA256}" ]]; then
+            echo "::error::Built APK signer does not match the installed-app upgrade chain"
+            exit 1
+          fi
           cd release
           sha256sum "Hazix-TV-v${VERSION}.apk" > SHA256SUMS.txt
 
