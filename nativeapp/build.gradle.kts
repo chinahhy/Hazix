@@ -6,6 +6,8 @@ plugins {
 
 val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse("3.3.9")
 val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(17)
+val releaseKeystorePath = providers.environmentVariable("HAZIX_RELEASE_KEYSTORE")
+    .orElse("${System.getProperty("user.home")}/.android/debug.keystore")
 
 android {
     namespace = "tv.hdao.app"
@@ -17,6 +19,15 @@ android {
         targetSdk = 35
         versionCode = releaseVersionCode.get()
         versionName = releaseVersionName.get()
+    }
+
+    signingConfigs {
+        create("hazixRelease") {
+            storeFile = file(releaseKeystorePath.get())
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
@@ -31,7 +42,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("hazixRelease")
         }
     }
 

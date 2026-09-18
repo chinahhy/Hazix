@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 30
     env:
       EXPECTED_SIGNER_SHA256: 6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1
+      HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
 
     steps:
       - name: Check out source
@@ -93,13 +94,12 @@ jobs:
             exit 1
           fi
 
-          mkdir -p "${HOME}/.android"
-          printf '%s' "${KEYSTORE_BASE64}" | base64 --decode > "${HOME}/.android/debug.keystore"
-          chmod 600 "${HOME}/.android/debug.keystore"
+          printf '%s' "${KEYSTORE_BASE64}" | base64 --decode > "${HAZIX_RELEASE_KEYSTORE}"
+          chmod 600 "${HAZIX_RELEASE_KEYSTORE}"
 
           KEYSTORE_SIGNER_SHA256=$(
             keytool -exportcert \
-              -keystore "${HOME}/.android/debug.keystore" \
+              -keystore "${HAZIX_RELEASE_KEYSTORE}" \
               -storepass android \
               -alias androiddebugkey |
               sha256sum |
