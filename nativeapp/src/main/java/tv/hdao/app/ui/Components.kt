@@ -232,7 +232,9 @@ fun LandscapeVodRow(
     navigationFocusRequester: FocusRequester? = null,
     contentStart: Dp = 146.dp,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
 ) {
+    val fallbackListState = rememberLazyListState()
     Column(modifier) {
         Text(
             title,
@@ -242,6 +244,7 @@ fun LandscapeVodRow(
             fontWeight = FontWeight.Bold,
         )
         LazyRow(
+            state = listState ?: fallbackListState,
             contentPadding = PaddingValues(start = contentStart, end = 28.dp, top = 5.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

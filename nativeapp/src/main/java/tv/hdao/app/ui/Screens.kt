@@ -61,9 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import tv.hdao.app.data.FavoriteEntry
+import tv.hdao.app.data.Favorites
 import tv.hdao.app.data.FeaturedCatalog
 import tv.hdao.app.data.HdaoRepository
+import tv.hdao.app.data.SearchHistory
 import tv.hdao.app.data.mergeVodPages
+import tv.hdao.app.data.toVod
 import tv.hdao.app.data.Vod
 import tv.hdao.app.data.VodDetail
 import tv.hdao.app.data.WatchEntry
@@ -91,7 +95,10 @@ class HomeScreenState {
     val listState = LazyListState()
     val railState = LazyListState()
     val continueState = LazyListState()
+    val favoritesState = LazyListState()
     var lastOpenedVodId by mutableStateOf<Int?>(null)
+    /** Saved titles, reloaded on every entry so a new favourite shows up at once. */
+    var favoriteItems by mutableStateOf(emptyList<Vod>())
 
     private var loadedRetry = -1
 
@@ -107,6 +114,7 @@ class HomeScreenState {
 fun HomeScreen(
     repository: HdaoRepository,
     watchProgress: WatchProgress,
+    favorites: Favorites,
     state: HomeScreenState,
     contentFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
@@ -125,6 +133,9 @@ fun HomeScreen(
         }
         state.markLoaded()
     }
+    LaunchedEffect(Unit) {
+        state.favoriteItems = favorites.all().map { it.toVod() }
+    }
     when (val current = state.catalog ?: LoadState.Loading) {
         LoadState.Loading -> LoadingView(
             message = "正在准备片库…",
@@ -142,6 +153,7 @@ fun HomeScreen(
             catalog = current.value,
             repository = repository,
             continueEntries = watchProgress.recent(),
+            favoriteItems = state.favoriteItems,
             state = state,
             onVodClick = onVodClick,
             onPlay = onPlay,
@@ -157,6 +169,7 @@ private fun HomeCatalog(
     catalog: FeaturedCatalog,
     repository: HdaoRepository,
     continueEntries: List<WatchEntry>,
+    favoriteItems: List<Vod>,
     state: HomeScreenState,
     onVodClick: (Vod) -> Unit,
     onPlay: (Vod) -> Unit,
@@ -205,6 +218,18 @@ private fun HomeCatalog(
                 contentStart = 42.dp,
                 listState = state.continueState,
             )
+        }
+        if (favoriteItems.isNotEmpty()) {
+            item(key = "favorites") {
+                LandscapeVodRow(
+                    title = "我的收藏",
+                    items = favoriteItems,
+                    onVodClick = onVodClick,
+                    navigationFocusRequester = navigationFocusRequester,
+                    contentStart = 42.dp,
+                    listState = state.favoritesState,
+                )
+            }
         }
     }
 }
@@ -578,6 +603,8 @@ class SearchScreenState {
     internal var results by mutableStateOf<LoadState<List<Vod>>?>(null)
     val gridState = LazyGridState()
     var lastOpenedVodId by mutableStateOf<Int?>(null)
+    /** Recent search terms, shown while nothing has been searched yet. */
+    var terms by mutableStateOf(emptyList<String>())
 
     private var loadedQuery: String? = null
     private var loadedAttempt = 0
@@ -596,12 +623,21 @@ class SearchScreenState {
 fun SearchScreen(
     repository: HdaoRepository,
     state: SearchScreenState,
+    history: SearchHistory,
     contentFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
     onVodClick: (Vod) -> Unit,
 ) {
     var fieldFocused by remember { mutableStateOf(false) }
     val restoredFocusRequester = remember { FocusRequester() }
+
+    fun submit(term: String) {
+        val trimmed = term.trim()
+        if (trimmed.isEmpty()) return
+        state.submitted = trimmed
+        state.searchAttempt++
+        state.terms = history.record(trimmed)
+    }
 
     LaunchedEffect(state.submitted, state.searchAttempt) {
         // A return from a detail page keeps the previous results; only a new
@@ -618,6 +654,7 @@ fun SearchScreen(
 
     // Runs on every entry: put the cursor back on the poster that was opened.
     LaunchedEffect(Unit) {
+        state.terms = history.all()
         val target = state.lastOpenedVodId ?: return@LaunchedEffect
         val results = (state.results as? LoadState.Ready)?.value ?: return@LaunchedEffect
         val index = results.indexOfFirst { it.vodId == target }
@@ -645,10 +682,7 @@ fun SearchScreen(
                 singleLine = true,
                 textStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontSize = 18.sp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    state.submitted = state.query.trim()
-                    state.searchAttempt++
-                }),
+                keyboardActions = KeyboardActions(onSearch = { submit(state.query) }),
                 modifier = Modifier.focusRequester(contentFocusRequester)
                     .focusProperties { up = navigationFocusRequester }
                     .onFocusChanged { fieldFocused = it.isFocused },
@@ -671,14 +705,23 @@ fun SearchScreen(
                 },
             )
             Spacer(Modifier.width(12.dp))
-            TvButton("搜索", primary = true, onClick = {
-                state.submitted = state.query.trim()
-                state.searchAttempt++
-            })
+            TvButton("搜索", primary = true, onClick = { submit(state.query) })
         }
         when (val current = state.results) {
-            null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("使用电视键盘输入关键词", color = Muted, fontSize = 17.sp)
+            null -> if (state.terms.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("使用电视键盘输入关键词", color = Muted, fontSize = 17.sp)
+                }
+            } else {
+                Column(Modifier.fillMaxSize().padding(start = 14.dp, top = 20.dp)) {
+                    Text("最近搜索", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(state.terms) { term ->
+                            TvButton(text = term, onClick = { submit(term) })
+                        }
+                    }
+                }
             }
             LoadState.Loading -> LoadingView("正在搜索…")
             is LoadState.Failed -> ErrorView(current.message) { state.searchAttempt++ }
@@ -717,11 +760,13 @@ fun SearchScreen(
 fun DetailScreen(
     vodId: Int,
     repository: HdaoRepository,
+    favorites: Favorites,
     onEpisodeClick: (Int) -> Unit,
     onVodClick: (Vod) -> Unit,
 ) {
     var retry by remember(vodId) { mutableIntStateOf(0) }
     var state by remember(vodId) { mutableStateOf<LoadState<VodDetail>>(LoadState.Loading) }
+    var favorite by remember(vodId) { mutableStateOf(favorites.isFavorite(vodId)) }
     LaunchedEffect(vodId, retry) {
         state = LoadState.Loading
         state = try { LoadState.Ready(repository.detail(vodId, retry > 0)) }
@@ -730,12 +775,36 @@ fun DetailScreen(
     when (val current = state) {
         LoadState.Loading -> LoadingView("正在加载影片详情…")
         is LoadState.Failed -> ErrorView(current.message) { retry++ }
-        is LoadState.Ready -> DetailContent(current.value, onEpisodeClick, onVodClick)
+        is LoadState.Ready -> DetailContent(
+            detail = current.value,
+            isFavorite = favorite,
+            onToggleFavorite = {
+                val vod = current.value.item
+                favorite = favorites.toggle(
+                    FavoriteEntry(
+                        vodId = vod.vodId,
+                        title = vod.title,
+                        imageUrl = vod.backdropUrl ?: vod.coverUrl,
+                        year = vod.year,
+                        score = vod.score,
+                        addedAt = System.currentTimeMillis(),
+                    ),
+                )
+            },
+            onEpisodeClick = onEpisodeClick,
+            onVodClick = onVodClick,
+        )
     }
 }
 
 @Composable
-private fun DetailContent(detail: VodDetail, onEpisodeClick: (Int) -> Unit, onVodClick: (Vod) -> Unit) {
+private fun DetailContent(
+    detail: VodDetail,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onEpisodeClick: (Int) -> Unit,
+    onVodClick: (Vod) -> Unit,
+) {
     val vod = detail.item
     val playFocusRequester = remember { FocusRequester() }
     LaunchedEffect(detail.item.vodId) {
@@ -789,6 +858,11 @@ private fun DetailContent(detail: VodDetail, onEpisodeClick: (Int) -> Unit, onVo
                             modifier = Modifier.padding(top = 20.dp).focusRequester(playFocusRequester),
                         )
                     }
+                    TvButton(
+                        text = if (isFavorite) "已收藏" else "收藏",
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
                 }
                 Box(
                     Modifier.align(Alignment.CenterEnd)

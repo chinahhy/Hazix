@@ -16,7 +16,9 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import tv.hdao.app.data.Favorites
 import tv.hdao.app.data.HdaoRepository
+import tv.hdao.app.data.SearchHistory
 import tv.hdao.app.data.WatchProgress
 
 private sealed interface Screen {
@@ -32,6 +34,8 @@ fun HdaoTvApp() {
     val context = LocalContext.current
     val repository = remember { HdaoRepository() }
     val progress = remember { WatchProgress(context.applicationContext) }
+    val favorites = remember { Favorites(context.applicationContext) }
+    val searchHistory = remember { SearchHistory(context.applicationContext) }
     val contentFocusRequester = remember { FocusRequester() }
     val navigationFocusRequester = remember { FocusRequester() }
     val backStack = remember { mutableStateListOf<Screen>() }
@@ -68,6 +72,7 @@ fun HdaoTvApp() {
             Screen.Home -> HomeScreen(
                 repository = repository,
                 watchProgress = progress,
+                favorites = favorites,
                 state = homeState,
                 contentFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
@@ -95,6 +100,7 @@ fun HdaoTvApp() {
             Screen.Search -> SearchScreen(
                 repository = repository,
                 state = searchState,
+                history = searchHistory,
                 contentFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
                 onVodClick = { vod ->
@@ -105,6 +111,7 @@ fun HdaoTvApp() {
             is Screen.Detail -> DetailScreen(
                 vodId = current.vodId,
                 repository = repository,
+                favorites = favorites,
                 onEpisodeClick = { index -> navigate(Screen.Player(current.vodId, index)) },
                 onVodClick = { navigate(Screen.Detail(it.vodId)) },
             )
