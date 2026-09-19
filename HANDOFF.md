@@ -15,11 +15,78 @@
 
 - 基线提交：`5392b9e`（`fix(ci): prevent incompatible grouped major updates`）。
 - 当时状态：工作区干净，`main` 与 `origin/main` 一致，无未提交改动。
-- 检查点 tag：`checkpoint-20260919-baseline`（本地普通 tag，命名刻意避开 `vX.Y.Z`，不会触发 `release-tv.yml` 发布流水线）。
-- 本轮改动文件：（待填）
-- 验证命令与结果：（待填）
-- 未验证项：（待填）
+- 检查点 tag：`checkpoint-20260919-baseline`（本地普通 tag，命名刻意避开 `vX.Y.Z`，不会触发发布流水线）。
 
-## 待办（Codex 接手时优先确认）
+## 2026-09-19 · DSH 接手轮次（Codex 额度用尽期间）
 
-- （待补）
+用户报的 5 项问题，全部处理。**所有改动都提交在 `main`，历史只增不改。**
+
+### 1. 构建与验证环境（最重要，先看这段）
+
+**这台 Mac 上无法编译改过的 Kotlin 源码。** 项目路径含中文
+（`/Volumes/Data/ChatGPT项目文件/观影平台`），Kotlin 的 Compose 编译器插件路径会被
+转义破坏，实测报错：
+
+```text
+error: plugin classpath entry points to a non-existent location:
+/Volumes/Data/ChatGPTu9879u76EEu6587u4EF6/u89C2u5F71u5E73u53F0/.tooling/gradle-home/.../kotlin-compose-compiler-plugin-embeddable-2.0.20.jar
+```
+
+加不加 Gradle 守护进程结果一样。因此：**本地只做「未改动源码」的构建（走缓存能过），
+任何 Kotlin 改动的验证都必须交给 GitHub Actions。**（`.tooling/` 里的工具链本身是可用的：
+JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，由更早的会话下载解压。）
+
+**模拟器同样跑不起来**：它强制要写 `~/Library/Caches/TemporaryItems/avd/running`，
+在当前文件沙箱下被拒绝后直接 FATAL。除非明确获得许可，不要再尝试启动模拟器。
+
+**签名密钥**：`~/.android/debug.keystore` 的证书 SHA-256 等于
+`release-apks.yml` / `ci.yml` 里写死的 `EXPECTED_SIGNER_SHA256`
+（`6f4c4390...f9f1`）。**绝对不要重新生成这个文件**，否则已安装的版本无法覆盖升级。
+云端通过 Actions Secret `ANDROID_DEBUG_KEYSTORE_BASE64` 还原同一把钥匙。
+
+### 2. 本轮改动文件
+
+| 问题 | 改动文件 |
+| --- | --- |
+| 动漫播放时控制条不自动隐藏 | `nativeapp/.../ui/PlayerScreen.kt` |
+| 从详情返回分类页焦点应回到原卡片 | `nativeapp/.../ui/Screens.kt`（新增 `CategoryScreenState`）、`ui/HdaoTvApp.kt` |
+| TV 缺少可发现的「检查更新」入口 | `ui/Components.kt`、`ui/UpdateDialog.kt`、`update/UpdateViewModel.kt`、`ui/HdaoTvApp.kt` |
+| 每次构建同时产出 TV + 手机 APK | `mobileapp/build.gradle.kts`、`.github/workflows/ci.yml`、`.github/workflows/release-apks.yml`（由 `release-tv.yml` 改名） |
+| README 专业化 / 许可 / 隐私 | `README.md`、`README.zh-CN.md`、`CHANGELOG.md`、`LICENSE`、`PRIVACY.md` |
+
+### 3. 根因（供 Codex 复核）
+
+1. **控制条不隐藏**：`LaunchedEffect(controlsTick)` 从最后一次交互起算 4.5 秒，
+   到点只在 `isPlaying` 为真时才隐藏。动漫源起播慢，计时结束时 `isPlaying` 还是 false，
+   于是控制条永久留在屏幕上。改为 `LaunchedEffect(controlsTick, isPlaying)`，只有真正在播放时才开始倒计时。
+2. **返回焦点错位**：分类页所有状态都是 `remember(category)`，进入详情页后整个页面离开组合，
+   网格、滚动位置、分页全部销毁；重建时页面里**没有任何一处显式请求焦点**，
+   焦点于是落到顶部导航（用户看到的「电影」分类名）。
+   改为把状态提升到 `HdaoTvApp` 的 `categoryStates`（新增 `CategoryScreenState`），
+   返回时按 `lastOpenedVodId` 滚动回原卡片并显式请求焦点；同时加了「已加载就不重复请求第 1 页」的判断。
+3. **找不到更新入口**：`UpdateCoordinator` 只在启动时 `check()` 一次，且
+   `UpdateUiState.Checking -> Unit`、无更新时直接回到 `Hidden`，全程零可见入口。
+   新增 `UpToDate` / `Checking(manual)` 状态与 `check(manual)`，顶部导航加「检查更新」文字入口。
+   注意：`UpdateManager.checkForUpdate()` 在 `BuildConfig.DEBUG` 下直接返回 null，
+   所以调试包永远显示「已是最新版本」，要验证「发现新版本」必须装 release 包。
+4. **手机版签名隐患**：`mobileapp` 的 release 之前用 `signingConfigs.getByName("debug")`，
+   而 AGP 的 debug 配置指向的 keystore 会随 `ANDROID_USER_HOME` 漂移，云端构建可能产出
+   无法覆盖安装的 APK。已改为与 `nativeapp` 相同的 `hazixRelease` 配置和同一把钥匙，
+   并让两个模块共用 `VERSION_NAME`/`VERSION_CODE`。
+
+### 4. 验证命令与结果
+
+- 本地 `./gradlew :nativeapp:assembleDebug :mobileapp:assembleDebug`：**通过**（50s，全部走缓存）。
+- 本地 `./gradlew :nativeapp:compileDebugKotlin`（有源码改动）：**失败**，原因见上面第 1 节，属环境问题，不是代码问题。
+- 云端 CI：见本轮各提交的 `ci.yml` 运行结果。
+- **未验证（必须真机确认）**：第 1、2、3 项的运行时行为——控制条是否真的自动隐藏、
+  返回后光标是否落在原卡片、新入口是否可见且能给出反馈。本机模拟器跑不起来，
+  这三项只能在真实电视上验证。
+
+### 5. 待办 / 需要用户确认
+
+- `LICENSE` 保留了原有的两个版权行，其中 `Jimmy (Autodarts-TV)` 是否为用户本人尚未确认；
+  改成专有许可涉及全部版权人，需用户确认。
+- 仓库目前在 GitHub 上是 **public**。用户以为只自己用；若想私有需在仓库设置里改。
+- `README.md` 现为英文主版本 + `README.zh-CN.md` 中文镜像，**两份要同步维护**。
+- `dist/SHA256SUMS.txt` 是本地台账（`dist/*.apk` 被 gitignore）；云端产物在 GitHub Releases。
