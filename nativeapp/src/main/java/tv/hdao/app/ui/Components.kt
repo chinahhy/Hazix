@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
@@ -330,7 +332,11 @@ fun ContinueWatchingRow(
     navigationFocusRequester: FocusRequester?,
     firstItemFocusRequester: FocusRequester,
     contentStart: Dp = 146.dp,
+    listState: LazyListState? = null,
 ) {
+    // Always remembered, so the call order stays stable for callers that pass
+    // no state of their own.
+    val fallbackListState = rememberLazyListState()
     Column(Modifier.fillMaxWidth().background(Ink)) {
         Text(
             "最近观看",
@@ -340,6 +346,7 @@ fun ContinueWatchingRow(
             fontWeight = FontWeight.Bold,
         )
         LazyRow(
+            state = listState ?: fallbackListState,
             contentPadding = PaddingValues(start = contentStart, end = 28.dp, top = 5.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

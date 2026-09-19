@@ -40,6 +40,11 @@ fun HdaoTvApp() {
     // leaves composition while a detail page is open, so that going back
     // restores the grid, the scroll offset and the focused poster.
     val categoryStates = remember { mutableStateMapOf<String, CategoryScreenState>() }
+    // Same contract for the home and search screens: their state must outlive a
+    // trip to a detail page, otherwise the search is lost and the home screen
+    // reloads and jumps back to the top.
+    val homeState = remember { HomeScreenState() }
+    val searchState = remember { SearchScreenState() }
     val updateViewModel = rememberUpdateViewModel()
 
     fun navigate(next: Screen) {
@@ -63,6 +68,7 @@ fun HdaoTvApp() {
             Screen.Home -> HomeScreen(
                 repository = repository,
                 watchProgress = progress,
+                state = homeState,
                 contentFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
                 onVodClick = { navigate(Screen.Detail(it.vodId)) },
@@ -88,9 +94,13 @@ fun HdaoTvApp() {
             }
             Screen.Search -> SearchScreen(
                 repository = repository,
+                state = searchState,
                 contentFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
-                onVodClick = { navigate(Screen.Detail(it.vodId)) },
+                onVodClick = { vod ->
+                    searchState.lastOpenedVodId = vod.vodId
+                    navigate(Screen.Detail(vod.vodId))
+                },
             )
             is Screen.Detail -> DetailScreen(
                 vodId = current.vodId,

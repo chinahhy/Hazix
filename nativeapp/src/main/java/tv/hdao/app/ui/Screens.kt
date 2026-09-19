@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -74,27 +75,56 @@ private sealed interface LoadState<out T> {
     data class Failed(val message: String) : LoadState<Nothing>
 }
 
+/**
+ * Catalogue, scroll positions and the last opened poster of the home screen.
+ *
+ * Owned by the navigation host for the same reason as [CategoryScreenState]:
+ * the home screen leaves composition while a detail page is open, so anything
+ * kept in remember() is thrown away. Without this, going back re-ran the fetch
+ * (flashing "正在准备片库…") and rebuilt the layout from the top.
+ */
+@Stable
+class HomeScreenState {
+    var retry by mutableIntStateOf(0)
+    var catalog by mutableStateOf<LoadState<FeaturedCatalog>?>(null)
+    val listState = LazyListState()
+    val railState = LazyListState()
+    val continueState = LazyListState()
+    var lastOpenedVodId by mutableStateOf<Int?>(null)
+
+    private var loadedRetry = -1
+
+    /** True only when the catalogue has never loaded, or a retry was requested. */
+    val needsLoad: Boolean get() = catalog == null || loadedRetry != retry
+
+    fun markLoaded() {
+        loadedRetry = retry
+    }
+}
+
 @Composable
 fun HomeScreen(
     repository: HdaoRepository,
     watchProgress: WatchProgress,
+    state: HomeScreenState,
     contentFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
     onVodClick: (Vod) -> Unit,
     onPlay: (Vod) -> Unit,
     onContinue: (WatchEntry) -> Unit,
 ) {
-    var retry by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<LoadState<FeaturedCatalog>>(LoadState.Loading) }
-    LaunchedEffect(retry) {
-        state = LoadState.Loading
-        state = try {
-            LoadState.Ready(repository.featured(force = retry > 0))
+    LaunchedEffect(state.retry) {
+        // Returning from a detail page must not reload the catalogue.
+        if (!state.needsLoad) return@LaunchedEffect
+        state.catalog = LoadState.Loading
+        state.catalog = try {
+            LoadState.Ready(repository.featured(force = state.retry > 0))
         } catch (error: Exception) {
             LoadState.Failed(error.message ?: "网络连接失败")
         }
+        state.markLoaded()
     }
-    when (val current = state) {
+    when (val current = state.catalog ?: LoadState.Loading) {
         LoadState.Loading -> LoadingView(
             message = "正在准备片库…",
             modifier = Modifier.focusRequester(contentFocusRequester)
@@ -103,7 +133,7 @@ fun HomeScreen(
         )
         is LoadState.Failed -> ErrorView(
             message = current.message,
-            retry = { retry++ },
+            retry = { state.retry++ },
             buttonModifier = Modifier.focusRequester(contentFocusRequester)
                 .focusProperties { up = navigationFocusRequester },
         )
@@ -111,6 +141,7 @@ fun HomeScreen(
             catalog = current.value,
             repository = repository,
             continueEntries = watchProgress.recent(),
+            state = state,
             onVodClick = onVodClick,
             onPlay = onPlay,
             onContinue = onContinue,
@@ -125,6 +156,7 @@ private fun HomeCatalog(
     catalog: FeaturedCatalog,
     repository: HdaoRepository,
     continueEntries: List<WatchEntry>,
+    state: HomeScreenState,
     onVodClick: (Vod) -> Unit,
     onPlay: (Vod) -> Unit,
     onContinue: (WatchEntry) -> Unit,
@@ -142,6 +174,7 @@ private fun HomeCatalog(
     }
     val continueWatchingFocusRequester = remember { FocusRequester() }
     LazyColumn(
+        state = state.listState,
         modifier = Modifier.fillMaxSize().background(Ink),
         contentPadding = PaddingValues(bottom = 42.dp),
     ) {
@@ -150,7 +183,13 @@ private fun HomeCatalog(
                 heroVods = heroVods,
                 posterVods = featuredPosters,
                 repository = repository,
+                railState = state.railState,
+                lastOpenedVodId = state.lastOpenedVodId,
                 onVodClick = onVodClick,
+                onRailVodClick = { vod ->
+                    state.lastOpenedVodId = vod.vodId
+                    onVodClick(vod)
+                },
                 onPlay = onPlay,
                 firstActionFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
@@ -163,6 +202,7 @@ private fun HomeCatalog(
                 navigationFocusRequester = null,
                 firstItemFocusRequester = continueWatchingFocusRequester,
                 contentStart = 42.dp,
+                listState = state.continueState,
             )
         }
     }
@@ -173,13 +213,32 @@ private fun HomePosterCarousel(
     heroVods: List<Vod>,
     posterVods: List<Vod>,
     repository: HdaoRepository,
+    railState: LazyListState,
+    lastOpenedVodId: Int?,
     onVodClick: (Vod) -> Unit,
+    onRailVodClick: (Vod) -> Unit,
     onPlay: (Vod) -> Unit,
     firstActionFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
 ) {
     if (heroVods.isEmpty()) return
     var selectedVod by remember(heroVods) { mutableStateOf(heroVods.first()) }
+    val railRestoreRequester = remember { FocusRequester() }
+
+    // Same contract as the category grid: on the way back from a detail page,
+    // scroll the poster that was opened into view and put the cursor on it.
+    LaunchedEffect(Unit) {
+        val target = lastOpenedVodId ?: return@LaunchedEffect
+        val index = posterVods.indexOfFirst { it.vodId == target }
+        if (index < 0) return@LaunchedEffect
+        railState.scrollToItem(index)
+        repeat(5) {
+            withFrameNanos { }
+            if (runCatching { railRestoreRequester.requestFocus() }.isSuccess) {
+                return@LaunchedEffect
+            }
+        }
+    }
     var actionsHaveFocus by remember { mutableStateOf(false) }
     var postersHaveFocus by remember { mutableStateOf(false) }
     var previewUrl by remember { mutableStateOf<String?>(null) }
@@ -271,6 +330,7 @@ private fun HomePosterCarousel(
                 fontWeight = FontWeight.Black,
             )
             LazyRow(
+                state = railState,
                 modifier = Modifier.onFocusChanged { postersHaveFocus = it.hasFocus }.focusGroup(),
                 contentPadding = PaddingValues(start = 42.dp, end = 28.dp, top = 5.dp, bottom = 13.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -278,8 +338,13 @@ private fun HomePosterCarousel(
                 rowItemsIndexed(posterVods, key = { index, vod -> "home-poster:${vod.vodId}:$index" }) { _, vod ->
                     PosterCard(
                         vod = vod,
-                        onClick = { onVodClick(vod) },
+                        onClick = { onRailVodClick(vod) },
                         onFocused = { selectedVod = vod },
+                        modifier = if (vod.vodId == lastOpenedVodId) {
+                            Modifier.focusRequester(railRestoreRequester)
+                        } else {
+                            Modifier
+                        },
                         cardWidth = 112.dp,
                         cardHeight = 158.dp,
                     )
@@ -497,23 +562,72 @@ fun CategoryScreen(
     }
 }
 
+/**
+ * Query, results and scroll position of the search screen.
+ *
+ * Owned by the navigation host. While this lived in remember() inside the
+ * screen, opening a result and pressing back discarded the query and the whole
+ * result list, so the user had to search all over again.
+ */
+@Stable
+class SearchScreenState {
+    var query by mutableStateOf("")
+    var submitted by mutableStateOf("")
+    var searchAttempt by mutableIntStateOf(0)
+    var results by mutableStateOf<LoadState<List<Vod>>?>(null)
+    val gridState = LazyGridState()
+    var lastOpenedVodId by mutableStateOf<Int?>(null)
+
+    private var loadedQuery: String? = null
+    private var loadedAttempt = 0
+
+    /** True when the current query has not been fetched yet. */
+    val needsSearch: Boolean
+        get() = submitted.isNotBlank() && (loadedQuery != submitted || loadedAttempt != searchAttempt)
+
+    fun markSearched() {
+        loadedQuery = submitted
+        loadedAttempt = searchAttempt
+    }
+}
+
 @Composable
 fun SearchScreen(
     repository: HdaoRepository,
+    state: SearchScreenState,
     contentFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
     onVodClick: (Vod) -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
-    var submitted by remember { mutableStateOf("") }
-    var searchAttempt by remember { mutableIntStateOf(0) }
     var fieldFocused by remember { mutableStateOf(false) }
-    var state by remember { mutableStateOf<LoadState<List<Vod>>?>(null) }
-    LaunchedEffect(submitted, searchAttempt) {
-        if (submitted.isBlank()) return@LaunchedEffect
-        state = LoadState.Loading
-        state = try { LoadState.Ready(repository.search(submitted)) }
-        catch (error: Exception) { LoadState.Failed(error.message ?: "搜索失败") }
+    val restoredFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(state.submitted, state.searchAttempt) {
+        // A return from a detail page keeps the previous results; only a new
+        // query or an explicit retry runs another search.
+        if (!state.needsSearch) return@LaunchedEffect
+        state.results = LoadState.Loading
+        state.results = try {
+            LoadState.Ready(repository.search(state.submitted))
+        } catch (error: Exception) {
+            LoadState.Failed(error.message ?: "搜索失败")
+        }
+        state.markSearched()
+    }
+
+    // Runs on every entry: put the cursor back on the poster that was opened.
+    LaunchedEffect(Unit) {
+        val target = state.lastOpenedVodId ?: return@LaunchedEffect
+        val results = (state.results as? LoadState.Ready)?.value ?: return@LaunchedEffect
+        val index = results.indexOfFirst { it.vodId == target }
+        if (index < 0) return@LaunchedEffect
+        state.gridState.scrollToItem(index)
+        repeat(5) {
+            withFrameNanos { }
+            if (runCatching { restoredFocusRequester.requestFocus() }.isSuccess) {
+                return@LaunchedEffect
+            }
+        }
     }
     Column(Modifier.fillMaxSize().padding(start = 28.dp, top = 58.dp)) {
         Text(
@@ -525,14 +639,14 @@ fun SearchScreen(
         )
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
-                value = query,
-                onValueChange = { query = it },
+                value = state.query,
+                onValueChange = { state.query = it },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontSize = 18.sp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {
-                    submitted = query.trim()
-                    searchAttempt++
+                    state.submitted = state.query.trim()
+                    state.searchAttempt++
                 }),
                 modifier = Modifier.focusRequester(contentFocusRequester)
                     .focusProperties { up = navigationFocusRequester }
@@ -550,37 +664,46 @@ fun SearchScreen(
                             .padding(horizontal = 15.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
-                        if (query.isEmpty()) Text("片名、演员或导演", color = Muted, fontSize = 16.sp)
+                        if (state.query.isEmpty()) Text("片名、演员或导演", color = Muted, fontSize = 16.sp)
                         inner()
                     }
                 },
             )
             Spacer(Modifier.width(12.dp))
             TvButton("搜索", primary = true, onClick = {
-                submitted = query.trim()
-                searchAttempt++
+                state.submitted = state.query.trim()
+                state.searchAttempt++
             })
         }
-        when (val current = state) {
+        when (val current = state.results) {
             null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("使用电视键盘输入关键词", color = Muted, fontSize = 17.sp)
             }
             LoadState.Loading -> LoadingView("正在搜索…")
-            is LoadState.Failed -> ErrorView(current.message) { searchAttempt++ }
+            is LoadState.Failed -> ErrorView(current.message) { state.searchAttempt++ }
             is LoadState.Ready -> {
                 if (current.value.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("没有找到“$submitted”", color = Muted, fontSize = 18.sp)
+                        Text("没有找到“${state.submitted}”", color = Muted, fontSize = 18.sp)
                     }
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(142.dp),
+                        state = state.gridState,
                         contentPadding = PaddingValues(start = 14.dp, end = 28.dp, top = 28.dp, bottom = 42.dp),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalArrangement = Arrangement.spacedBy(22.dp),
                     ) {
                         itemsIndexed(current.value, key = { index, vod -> "${vod.vodId}:$index" }) { _, vod ->
-                            PosterCard(vod, onClick = { onVodClick(vod) })
+                            PosterCard(
+                                vod = vod,
+                                onClick = { onVodClick(vod) },
+                                modifier = if (vod.vodId == state.lastOpenedVodId) {
+                                    Modifier.focusRequester(restoredFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                            )
                         }
                     }
                 }
