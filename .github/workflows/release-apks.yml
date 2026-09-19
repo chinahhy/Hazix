@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Detect an already published tag release
         id: existing-release
@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload workflow artifact
         if: steps.existing-release.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Hazix-v${{ steps.version.outputs.version }}
           path: release/
