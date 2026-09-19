@@ -102,8 +102,17 @@ class HomeScreenState {
 
     private var loadedRetry = -1
 
-    /** True only when the catalogue has never loaded, or a retry was requested. */
-    val needsLoad: Boolean get() = catalog == null || loadedRetry != retry
+    /**
+     * True when the catalogue has never loaded, when the last attempt failed, or
+     * when a retry was requested.
+     *
+     * A failed state counts as needing a load on purpose: the screen re-enters
+     * composition whenever the user comes back to it, so a transient failure
+     * recovers by navigating away and back instead of staying stuck until the
+     * user finds the retry button.
+     */
+    val needsLoad: Boolean
+        get() = catalog == null || catalog is LoadState.Failed || loadedRetry != retry
 
     fun markLoaded() {
         loadedRetry = retry
