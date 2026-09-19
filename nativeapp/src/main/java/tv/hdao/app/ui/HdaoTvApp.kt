@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,6 +36,11 @@ fun HdaoTvApp() {
     val navigationFocusRequester = remember { FocusRequester() }
     val backStack = remember { mutableStateListOf<Screen>() }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    // Per-category grid state. It has to outlive the category screen, which
+    // leaves composition while a detail page is open, so that going back
+    // restores the grid, the scroll offset and the focused poster.
+    val categoryStates = remember { mutableStateMapOf<String, CategoryScreenState>() }
+    val updateViewModel = rememberUpdateViewModel()
 
     fun navigate(next: Screen) {
         backStack.add(screen)
@@ -63,14 +69,23 @@ fun HdaoTvApp() {
                 onPlay = { navigate(Screen.Player(it.vodId, 0)) },
                 onContinue = { navigate(Screen.Player(it.vodId, it.episodeIndex)) },
             )
-            is Screen.Category -> CategoryScreen(
-                category = current.key,
-                title = current.title,
-                repository = repository,
-                contentFocusRequester = contentFocusRequester,
-                navigationFocusRequester = navigationFocusRequester,
-                onVodClick = { navigate(Screen.Detail(it.vodId)) },
-            )
+            is Screen.Category -> {
+                val categoryState = remember(current.key) {
+                    categoryStates.getOrPut(current.key) { CategoryScreenState() }
+                }
+                CategoryScreen(
+                    category = current.key,
+                    title = current.title,
+                    repository = repository,
+                    state = categoryState,
+                    contentFocusRequester = contentFocusRequester,
+                    navigationFocusRequester = navigationFocusRequester,
+                    onVodClick = { vod ->
+                        categoryState.lastOpenedVodId = vod.vodId
+                        navigate(Screen.Detail(vod.vodId))
+                    },
+                )
+            }
             Screen.Search -> SearchScreen(
                 repository = repository,
                 contentFocusRequester = contentFocusRequester,
@@ -107,12 +122,13 @@ fun HdaoTvApp() {
                         else -> openRoot(Screen.Category(key, title))
                     }
                 },
+                onCheckUpdate = { updateViewModel.check(manual = true) },
                 contentFocusRequester = contentFocusRequester,
                 selectedFocusRequester = navigationFocusRequester,
                 modifier = Modifier.align(Alignment.TopStart).zIndex(20f),
             )
         }
 
-        UpdateCoordinator()
+        UpdateCoordinator(updateViewModel)
     }
 }

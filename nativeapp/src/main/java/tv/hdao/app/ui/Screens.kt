@@ -35,12 +35,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -353,56 +355,95 @@ private fun HomeFeaturedDetails(
     }
 }
 
+/**
+ * Loaded pages, scroll position and the last opened poster of one category.
+ *
+ * This state is owned by the navigation host, not by [CategoryScreen] itself,
+ * because the screen leaves composition while a detail page is open. Keeping it
+ * here is what lets the category screen come back with its grid intact, the
+ * cursor back on the poster the user opened, and no page-one reload.
+ */
+@Stable
+class CategoryScreenState {
+    val gridState = LazyGridState()
+    var items by mutableStateOf(emptyList<Vod>())
+    var requestedPage by mutableIntStateOf(1)
+    var loadedPage by mutableIntStateOf(0)
+    var totalPages by mutableIntStateOf(1)
+    var loading by mutableStateOf(true)
+    var loadError by mutableStateOf<String?>(null)
+    var retry by mutableIntStateOf(0)
+    var lastOpenedVodId by mutableStateOf<Int?>(null)
+}
+
 @Composable
 fun CategoryScreen(
     category: String,
     title: String,
     repository: HdaoRepository,
+    state: CategoryScreenState,
     contentFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
     onVodClick: (Vod) -> Unit,
 ) {
-    val gridState = remember(category) { LazyGridState() }
-    var retry by remember(category) { mutableIntStateOf(0) }
-    var requestedPage by remember(category) { mutableIntStateOf(1) }
-    var loadedPage by remember(category) { mutableIntStateOf(0) }
-    var totalPages by remember(category) { mutableIntStateOf(1) }
-    var items by remember(category) { mutableStateOf(emptyList<Vod>()) }
-    var loading by remember(category) { mutableStateOf(true) }
-    var loadError by remember(category) { mutableStateOf<String?>(null) }
+    val gridState = state.gridState
+    val restoredFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(category, requestedPage, retry) {
-        loading = true
-        loadError = null
-        try {
-            val result = repository.category(category, requestedPage)
-            items = if (requestedPage == 1) {
-                result.items
-            } else {
-                mergeVodPages(items, result.items)
+    // Runs on every entry to this screen, including the return from a detail
+    // page: scroll the poster that was opened back into view and put the cursor
+    // on it, instead of dropping the cursor on the top navigation bar.
+    LaunchedEffect(Unit) {
+        val target = state.lastOpenedVodId ?: return@LaunchedEffect
+        val index = state.items.indexOfFirst { it.vodId == target }
+        if (index < 0) return@LaunchedEffect
+        state.gridState.scrollToItem(index)
+        if (index == 0) {
+            runCatching { contentFocusRequester.requestFocus() }
+            return@LaunchedEffect
+        }
+        // The card has to be composed before its FocusRequester can be used.
+        repeat(5) {
+            withFrameNanos { }
+            if (runCatching { restoredFocusRequester.requestFocus() }.isSuccess) {
+                return@LaunchedEffect
             }
-            loadedPage = result.page.coerceAtLeast(requestedPage)
-            totalPages = result.totalPages.coerceAtLeast(loadedPage)
-        } catch (error: Exception) {
-            loadError = error.message ?: "网络连接失败"
-        } finally {
-            loading = false
         }
     }
-    // Category changes replace the grid and paging state objects. Recreate the
-    // derived state too, otherwise it keeps observing the first category opened.
-    val shouldLoadMore by remember(category, gridState) {
+
+    LaunchedEffect(category, state.requestedPage, state.retry) {
+        // Returning from a detail page must not reload and replace the grid.
+        if (state.loadedPage >= state.requestedPage && state.loadError == null) {
+            return@LaunchedEffect
+        }
+        state.loading = true
+        state.loadError = null
+        try {
+            val result = repository.category(category, state.requestedPage)
+            state.items = if (state.requestedPage == 1) {
+                result.items
+            } else {
+                mergeVodPages(state.items, result.items)
+            }
+            state.loadedPage = result.page.coerceAtLeast(state.requestedPage)
+            state.totalPages = result.totalPages.coerceAtLeast(state.loadedPage)
+        } catch (error: Exception) {
+            state.loadError = error.message ?: "网络连接失败"
+        } finally {
+            state.loading = false
+        }
+    }
+    val shouldLoadMore by remember(state) {
         derivedStateOf {
-            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            items.isNotEmpty() &&
-                lastVisible >= items.lastIndex - 6 &&
-                loadedPage < totalPages &&
-                !loading &&
-                loadError == null
+            val lastVisible = state.gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            state.items.isNotEmpty() &&
+                lastVisible >= state.items.lastIndex - 6 &&
+                state.loadedPage < state.totalPages &&
+                !state.loading &&
+                state.loadError == null
         }
     }
     LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) requestedPage = loadedPage + 1
+        if (shouldLoadMore) state.requestedPage = state.loadedPage + 1
     }
 
     Column(Modifier.fillMaxSize().padding(start = 28.dp, top = 58.dp)) {
@@ -414,8 +455,9 @@ fun CategoryScreen(
             fontWeight = FontWeight.Black,
         )
         when {
-            items.isEmpty() && loading -> LoadingView()
-            items.isEmpty() && loadError != null -> ErrorView(loadError ?: "网络连接失败") { retry++ }
+            state.items.isEmpty() && state.loading -> LoadingView()
+            state.items.isEmpty() && state.loadError != null ->
+                ErrorView(state.loadError ?: "网络连接失败") { state.retry++ }
             else -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(142.dp),
                 state = gridState,
@@ -424,16 +466,20 @@ fun CategoryScreen(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
-                itemsIndexed(items, key = { index, vod -> "${vod.vodId}:$index" }) { index, vod ->
-                    val modifier = if (index == 0) {
-                        Modifier.focusRequester(contentFocusRequester)
+                itemsIndexed(state.items, key = { index, vod -> "${vod.vodId}:$index" }) { index, vod ->
+                    // Item 0 always carries the shared requester so the top
+                    // navigation can still jump into the grid; the poster the
+                    // user last opened gets its own requester for the return.
+                    val modifier = when {
+                        index == 0 -> Modifier.focusRequester(contentFocusRequester)
                             .focusProperties { up = navigationFocusRequester }
-                    } else {
-                        Modifier
+                        vod.vodId == state.lastOpenedVodId ->
+                            Modifier.focusRequester(restoredFocusRequester)
+                        else -> Modifier
                     }
                     PosterCard(vod, onClick = { onVodClick(vod) }, modifier = modifier)
                 }
-                if (loadError != null) {
+                if (state.loadError != null) {
                     item(key = "load-more-error", span = { GridItemSpan(maxLineSpan) }) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
@@ -442,7 +488,7 @@ fun CategoryScreen(
                         ) {
                             Text("更多内容暂时没有加载成功", color = Muted, fontSize = 14.sp)
                             Spacer(Modifier.width(12.dp))
-                            TvButton("重试", onClick = { retry++ })
+                            TvButton("重试", onClick = { state.retry++ })
                         }
                     }
                 }

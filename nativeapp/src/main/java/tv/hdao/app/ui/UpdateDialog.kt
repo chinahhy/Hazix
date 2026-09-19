@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,12 +42,14 @@ import tv.hdao.app.update.UpdateViewModel
 import java.io.File
 
 @Composable
-fun UpdateCoordinator() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val activity = context as ComponentActivity
-    val updateViewModel = remember(activity) {
-        ViewModelProvider(activity)[UpdateViewModel::class.java]
-    }
+fun rememberUpdateViewModel(): UpdateViewModel {
+    val activity = LocalContext.current as ComponentActivity
+    return remember(activity) { ViewModelProvider(activity)[UpdateViewModel::class.java] }
+}
+
+@Composable
+fun UpdateCoordinator(updateViewModel: UpdateViewModel) {
+    val context = LocalContext.current
     val state by updateViewModel.state.collectAsStateWithLifecycle()
     var pendingApk by remember { mutableStateOf<File?>(null) }
     var pendingRelease by remember { mutableStateOf<UpdateRelease?>(null) }
@@ -89,7 +92,22 @@ fun UpdateCoordinator() {
     }
 
     when (val current = state) {
-        UpdateUiState.Hidden, UpdateUiState.Checking -> Unit
+        UpdateUiState.Hidden -> Unit
+        is UpdateUiState.Checking -> if (current.manual) {
+            UpdatePrompt(
+                title = "正在检查更新",
+                message = "正在连接发布服务器，请稍候…",
+                onConfirm = null,
+                onDismiss = {},
+            )
+        }
+        is UpdateUiState.UpToDate -> UpdatePrompt(
+            title = "已经是最新版本",
+            message = "当前安装的是 v${current.version}，暂时没有更新的版本。",
+            confirmLabel = "知道了",
+            onConfirm = updateViewModel::dismiss,
+            onDismiss = updateViewModel::dismiss,
+        )
         is UpdateUiState.Available -> UpdatePrompt(
             title = "发现新版本 v${current.release.version}",
             message = current.release.notes.ifBlank { "新版本已经准备好，可以直接在电视上下载。" },
@@ -114,12 +132,12 @@ fun UpdateCoordinator() {
             onDismiss = updateViewModel::dismiss,
         )
         is UpdateUiState.Failed -> UpdatePrompt(
-            title = "更新没有完成",
+            title = if (current.release == null) "检查更新失败" else "更新没有完成",
             message = current.message,
             confirmLabel = "重试",
             dismissLabel = "关闭",
             onConfirm = {
-                current.release?.let(updateViewModel::download) ?: updateViewModel.check()
+                current.release?.let(updateViewModel::download) ?: updateViewModel.check(manual = true)
             },
             onDismiss = updateViewModel::dismiss,
         )

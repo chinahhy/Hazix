@@ -8,11 +8,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import tv.hdao.app.BuildConfig
 import java.io.File
 
 sealed interface UpdateUiState {
     data object Hidden : UpdateUiState
-    data object Checking : UpdateUiState
+    data class Checking(val manual: Boolean) : UpdateUiState
+    data class UpToDate(val version: String) : UpdateUiState
     data class Available(val release: UpdateRelease) : UpdateUiState
     data class Downloading(val release: UpdateRelease, val progress: Int) : UpdateUiState
     data class Ready(val release: UpdateRelease, val apk: File) : UpdateUiState
@@ -24,14 +26,37 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     private val mutableState = MutableStateFlow<UpdateUiState>(UpdateUiState.Hidden)
     val state: StateFlow<UpdateUiState> = mutableState.asStateFlow()
 
-    fun check() {
-        if (mutableState.value != UpdateUiState.Hidden) return
+    /**
+     * @param manual true when the user asked for a check from the navigation bar.
+     * A manual check always reports its outcome, including "already up to date"
+     * and network failures; the automatic check on launch stays silent unless a
+     * newer release is available.
+     */
+    fun check(manual: Boolean = false) {
+        val current = mutableState.value
+        // Never interrupt a check, a download, or an update that is downloaded
+        // and waiting for the system installer.
+        if (current is UpdateUiState.Checking ||
+            current is UpdateUiState.Downloading ||
+            current is UpdateUiState.Ready
+        ) {
+            return
+        }
+        if (!manual && current != UpdateUiState.Hidden) return
         viewModelScope.launch {
-            mutableState.value = UpdateUiState.Checking
-            mutableState.value = runCatching { manager.checkForUpdate() }
-                .getOrNull()
-                ?.let(UpdateUiState::Available)
-                ?: UpdateUiState.Hidden
+            mutableState.value = UpdateUiState.Checking(manual)
+            val outcome = runCatching { manager.checkForUpdate() }
+            val release = outcome.getOrNull()
+            mutableState.value = when {
+                outcome.isFailure -> {
+                    val message = outcome.exceptionOrNull()?.message ?: "检查更新失败"
+                    if (manual) UpdateUiState.Failed(null, message) else UpdateUiState.Hidden
+                }
+                release == null -> {
+                    if (manual) UpdateUiState.UpToDate(BuildConfig.VERSION_NAME) else UpdateUiState.Hidden
+                }
+                else -> UpdateUiState.Available(release)
+            }
         }
     }
 
