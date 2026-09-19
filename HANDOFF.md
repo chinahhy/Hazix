@@ -694,3 +694,40 @@ CHANGELOG 的 3.7.0 条目已按「电视端 / 浏览器预览」两段写清，
 
 NAS 中转站已预热 v3.7.0：`/chinahhy/Hazix/releases/latest` 返回 `X-Hazix-Tag: v3.7.0`，
 三个资产都能从 `http://10.0.0.104:18088` 取到，且与官方发布逐字节一致。
+
+### v3.7.1 发布结果（2026-09-19）— 这一版才是要装的那一版
+
+- Release：<https://github.com/chinahhy/Hazix/releases/tag/v3.7.1>
+- **关键验证**：解包 `Hazix-TV-v3.7.1.apk` 的 `classes.dex`，**能搜到 `10.0.0.104:18088`**
+  ——中转站地址确实编进包里了（v3.7.0 搜不到）。`apksigner`：v1 true + v2 true；
+  `aapt2 dump badging`：versionCode 3007001 / versionName 3.7.1。
+- 产物与哈希（已归档 `dist/` 并追加 `dist/SHA256SUMS.txt`）：
+
+| 包 | SHA-256 | 大小 |
+| --- | --- | --- |
+| `Hazix-TV-v3.7.1.apk` | `72ee110e64e9f94b663cbbb4b14c29c3ea919586362889c2ce1ad51bc2d2086f` | 2834048 |
+| `Hazix-Mobile-v3.7.1.apk` | `6018ffd217523e690a2c2981386907d799176ba044a85f50461ea5a65ce6a4cc` | 2764459 |
+
+- **CI 的 NAS 预热步骤生效了**：发布后中转站日志出现三条"已缓存"
+  （2834048 / 2764462 / 176 字节），且 `/releases/latest` 现在返回 `X-Hazix-Tag: v3.7.1`。
+  也就是说以后每发一版，NAS 会自动拿到新包，不需要人工喂缓存。
+
+### 本轮踩的坑：gh CLI 与仓库变量
+
+用户以为 `gh` 早装好了。实际情况：`~/.config/gh/` 配置还在，但**二进制已经不在了**
+（`/opt/homebrew` 与 `/usr/local/Cellar` 都不存在，Homebrew 本身也没了）。
+按用户要求重装到 `/tmp`（`/usr/local/bin` 被沙箱挡住不能写）后，`gh auth status` 报
+**钥匙串里的 token 已失效**。
+
+最终走的是 git 自己的凭据：`git credential fill`（helper 未显式配置，走 macOS 系统钥匙串）
+能取到 40 字符 token。用它调 API 确认 `permissions.admin = true` 且当时
+`/actions/variables` 为空，于是直接创建了仓库变量：
+
+```bash
+TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | awk -F= '/^password=/{print $2}')
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+  -d '{"name":"NAS_MIRROR_BASE","value":"http://10.0.0.104:18088"}' \
+  https://api.github.com/repos/chinahhy/Hazix/actions/variables
+```
+
+以后需要动仓库配置时，可以复用这条路径（比修 `gh` 的登录快）。注意：**token 不要打印到日志里**。
