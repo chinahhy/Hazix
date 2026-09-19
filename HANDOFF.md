@@ -122,7 +122,8 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 - **绝不要重新生成 `~/.android/debug.keystore`**，否则电视端自更新与手机端覆盖安装都会失败。
 - 想在本机编译 Kotlin，必须先解决两件事：中文项目路径导致 Compose 编译器插件路径被转义破坏，
   以及 Kotlin daemon 无法写入项目外目录。在解决之前一律用云端 CI 验证。
-- `README.md` 与 `README.zh-CN.md` 需同步维护。
+- `README.md`（中文，GitHub 首页默认展示）与 `README.en.md`（英文镜像）需同步维护；
+  `CHANGELOG.md`、`PRIVACY.md`、`LICENSE`、`THIRD_PARTY_NOTICES.md` 目前仍以英文为主。
 
 ### 8. 当前发布状态（交接时的实际状态）
 
