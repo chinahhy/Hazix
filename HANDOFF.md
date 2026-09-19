@@ -85,8 +85,11 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 
 ### 5. 待办 / 需要用户确认
 
-- `LICENSE` 保留了原有的两个版权行，其中 `Jimmy (Autodarts-TV)` 是否为用户本人尚未确认；
-  改成专有许可涉及全部版权人，需用户确认。
+- 已处理：用户确认 `Jimmy (Autodarts-TV)` 不是本人。它是第三方 MIT 项目
+  [Autodarts-TV](https://github.com/TheJim03/Autodarts-TV) 的版权人，旧的 `app/` 模块改编过其代码。
+  该 MIT 声明已从 `LICENSE` 移到 `THIRD_PARTY_NOTICES.md` 完整保留（MIT 要求必须保留），
+  `LICENSE` 只承载本项目自己的专有条款。
+  **注意：将来若删除不再使用的 `app/` 模块，这项 MIT 义务才会随之消失。**
 - 仓库目前在 GitHub 上是 **public**。用户以为只自己用；若想私有需在仓库设置里改。
 - `README.md` 现为英文主版本 + `README.zh-CN.md` 中文镜像，**两份要同步维护**。
 - `dist/SHA256SUMS.txt` 是本地台账（`dist/*.apk` 被 gitignore）；云端产物在 GitHub Releases。
