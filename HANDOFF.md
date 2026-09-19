@@ -52,7 +52,7 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 | 从详情返回分类页焦点应回到原卡片 | `nativeapp/.../ui/Screens.kt`（新增 `CategoryScreenState`）、`ui/HdaoTvApp.kt` |
 | TV 缺少可发现的「检查更新」入口 | `ui/Components.kt`、`ui/UpdateDialog.kt`、`update/UpdateViewModel.kt`、`ui/HdaoTvApp.kt` |
 | 每次构建同时产出 TV + 手机 APK | `mobileapp/build.gradle.kts`、`.github/workflows/ci.yml`、`.github/workflows/release-apks.yml`（由 `release-tv.yml` 改名） |
-| README 专业化 / 许可 / 隐私 | `README.md`、`README.zh-CN.md`、`CHANGELOG.md`、`LICENSE`、`PRIVACY.md` |
+| README 专业化 / 许可 / 隐私 | `README.md`（中文主版本）、`README.en.md`（英文镜像）、`CHANGELOG.md`、`LICENSE`、`PRIVACY.md` |
 
 ### 3. 根因（供 Codex 复核）
 
@@ -91,7 +91,8 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
   `LICENSE` 只承载本项目自己的专有条款。
   **注意：将来若删除不再使用的 `app/` 模块，这项 MIT 义务才会随之消失。**
 - 仓库目前在 GitHub 上是 **public**。用户以为只自己用；若想私有需在仓库设置里改。
-- `README.md` 现为英文主版本 + `README.zh-CN.md` 中文镜像，**两份要同步维护**。
+- `README.md` 是**中文主版本**（GitHub 仓库首页默认展示的就是它），`README.en.md` 是英文镜像，
+  **两份要同步维护**。此前一度把英文放在 `README.md`，已按用户要求交换回来。
 - `dist/SHA256SUMS.txt` 是本地台账（`dist/*.apk` 被 gitignore）；云端产物在 GitHub Releases。
 
 ### 6. CI 最终结果（提交 `b821e8d`，三个 job 全绿）
