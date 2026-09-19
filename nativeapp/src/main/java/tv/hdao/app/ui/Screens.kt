@@ -69,7 +69,7 @@ import tv.hdao.app.data.VodDetail
 import tv.hdao.app.data.WatchEntry
 import tv.hdao.app.data.WatchProgress
 
-private sealed interface LoadState<out T> {
+internal sealed interface LoadState<out T> {
     data object Loading : LoadState<Nothing>
     data class Ready<T>(val value: T) : LoadState<T>
     data class Failed(val message: String) : LoadState<Nothing>
@@ -86,7 +86,8 @@ private sealed interface LoadState<out T> {
 @Stable
 class HomeScreenState {
     var retry by mutableIntStateOf(0)
-    var catalog by mutableStateOf<LoadState<FeaturedCatalog>?>(null)
+    // Internal, not public: LoadState is internal to this file's package.
+    internal var catalog by mutableStateOf<LoadState<FeaturedCatalog>?>(null)
     val listState = LazyListState()
     val railState = LazyListState()
     val continueState = LazyListState()
@@ -574,7 +575,7 @@ class SearchScreenState {
     var query by mutableStateOf("")
     var submitted by mutableStateOf("")
     var searchAttempt by mutableIntStateOf(0)
-    var results by mutableStateOf<LoadState<List<Vod>>?>(null)
+    internal var results by mutableStateOf<LoadState<List<Vod>>?>(null)
     val gridState = LazyGridState()
     var lastOpenedVodId by mutableStateOf<Int?>(null)
 
