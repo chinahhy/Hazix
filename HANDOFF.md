@@ -664,3 +664,33 @@ CHANGELOG 的 3.7.0 条目已按「电视端 / 浏览器预览」两段写清，
 
 **用户必须手动装这一版**：他电视上装的仍是旧版，其应用内更新的下载走 GitHub 直连，
 在他家的网络下很可能失败；只有先手动装上 v3.7.0（内含 NAS 中转），后续版本才走得通。
+
+### v3.7.0 发布结果（2026-09-19）
+
+- CI 全部绿：`Web checks`、`Android tests and lint`、`Build TV and mobile APKs`。
+- Release：<https://github.com/chinahhy/Hazix/releases/tag/v3.7.0>
+- 产物与哈希（已归档进 `dist/`，并追加到 `dist/SHA256SUMS.txt`）：
+
+| 包 | SHA-256 | 大小 |
+| --- | --- | --- |
+| `Hazix-TV-v3.7.0.apk` | `e8723550b71380ac681375b3de6358c4c51839828a8afa1c3f71127f8f8f2045` | 2834048 |
+| `Hazix-Mobile-v3.7.0.apk` | `51b62a96eb7a7ed01e4d5b65083c0ba8d03bf9a0732536fb198bf0f9969e6df0` | 2764462 |
+
+- 签名核对：`apksigner verify --min-sdk-version 23` = **v1 true + v2 true**（发布链同一把钥匙，
+  可覆盖安装）；`aapt2 dump badging`：`tv.hdao.app`，versionCode 3007000 / versionName 3.7.0。
+- 本机预跑过 CI 的同一条命令 `:nativeapp:lintRelease :mobileapp:lintRelease`，两个模块都通过
+  （此前只跑过 `lintDebug`，这次补上了 release 变体的验证）。
+
+**重要遗留：这一版没有烧进 NAS 地址。**
+仓库变量 `NAS_MIRROR_BASE` 尚未设置，所以 CI 的 `-PhazixMirrorBase=` 是空的，
+`Hazix-TV-v3.7.0.apk` 的 dex 里搜不到 `10.0.0.104`，它的更新仍然只走 GitHub。
+如果用户电视所在网络也到不了 GitHub（他 NAS 就到不了），这一版的应用内更新会失败。
+两条补救路径（择一，见下一轮）：
+
+1. 设置仓库变量 `NAS_MIRROR_BASE=http://10.0.0.104:18088`，然后发 v3.7.1（推荐，一次性）；
+2. 不重新打包，用 `adb shell` 往应用私有 SharedPreferences `update_mirror` 里写 `baseUrl`
+   （`UpdateManager.mirrorSettings()` 会优先读它）。但电视上没有 adb，用户需要先开电视的
+   ADB 调试，实际操作比重新发一版麻烦。
+
+NAS 中转站已预热 v3.7.0：`/chinahhy/Hazix/releases/latest` 返回 `X-Hazix-Tag: v3.7.0`，
+三个资产都能从 `http://10.0.0.104:18088` 取到，且与官方发布逐字节一致。
