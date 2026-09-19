@@ -75,6 +75,7 @@ function card(item, options = {}) {
     : (landscape ? '' : `<span class="card-title">${esc(item.title)}</span>`);
   return `<a class="poster-card ${landscape ? 'landscape-card' : ''} ${isFeatured ? 'featured-card' : ''} ${entry ? 'continue-card' : ''}" href="${url}" data-id="${idOf(item)}" aria-label="${esc(item.title)}${rating ? `，评分 ${rating.score}` : ''}${entry ? `，最近观看 ${esc(entry.episodeName)}` : '，查看详情'}">
     <div class="poster-art">${art ? `<img src="${esc(art)}" alt="" loading="${isFeatured ? 'eager' : 'lazy'}">` : '<span class="no-poster">暂无图片</span>'}
+    ${rating ? `<span class="card-score">${esc(rating.score)}</span>` : ''}
     ${landscape ? `<div class="card-hover"><div class="card-hover-actions"><span class="round-button">${icon('play')}</span><span class="round-button ghost">${icon('info')}</span></div><div class="card-hover-copy"><strong>${esc(item.title)}</strong>${rating || meta ? `<span class="card-hover-meta">${rating ? `<em>${rating.score}</em>` : ''}${meta}</span>` : ''}</div></div>` : ''}
     ${entry ? `<div class="watch-bar"><i style="width:${entry.duration > 0 ? Math.min(100, entry.position / entry.duration * 100) : 0}%"></i></div>` : ''}</div>
     ${tail}</a>`;

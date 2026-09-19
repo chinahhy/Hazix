@@ -509,3 +509,18 @@ cd web && pnpm run check && pnpm test           # 8/8 通过
 但运行时报 `ReferenceError: icon is not defined`，整个首页白屏（nav 和 content 全空）。
 教训：删代码后不能只看 `node --check`，必须真的打开页面看 DOM——
 `/tmp/diag-app.mjs` 用 CDP 抓 `Runtime.exceptionThrown` 一眼就能看到。
+
+### 9. 修正：把卡片评分角标加回来（用户第三次反馈的追加要求）
+
+用户问「评分呢？我之前是有评分的」。查过了：**数据一直都在**
+（`/api/vods/featured` 快照：hero 6/6、movies 50/50、tv 49/50、variety 42/50、anime 48/50、
+documentary 48/50 有分；只有 shortDrama 50 部**全无评分**），
+是我在第 1 节重做视觉时按"Netflix 卡片不显示评分"把金色角标删了，判断错了。
+
+现在：`.card-score` 中性深色胶囊（`rgba(0,0,0,.72)` + 浅灰字，13px；横版 12px；手机 11px），
+放在**每张卡片**左上角——横版行、竖版分类页、搜索结果、我的页面都有，不藏在悬浮层里。
+巨幕的评分仍是 `meta()` 里的绿色数字。
+
+实测：首页 `badges: 6`（6.7/6.4/7.2/8.7/8.8/8.3）；分类页 `cards: 72, badges: 72`，
+无 JS 异常。**评分显示不要再删**——它不是装饰，是用户挑片的主要依据。
+`rgba(#46d369)` 只在文字上用于强调，没有回到大金色块。

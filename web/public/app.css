@@ -120,6 +120,10 @@ svg { flex: 0 0 auto; }
 .poster-card:focus-visible { outline: 0; }
 .poster-card:focus-visible .poster-art { box-shadow: 0 0 0 3px #fff; }
 .card-title { display: block; overflow: hidden; margin-top: 9px; color: #d2d2d2; font-size: 13px; font-weight: 500; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+/* 评分是用户挑片的主要依据，每张卡片都要能直接看到（不藏在悬浮层里）。
+   用中性深色胶囊而不是旧的暖金色，避免回到"金色角标"的老样子。 */
+.card-score { position: absolute; z-index: 4; top: 9px; left: 9px; padding: 4px 7px; border-radius: 3px; background: rgba(0,0,0,.72); color: #e8e8e8; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000; backdrop-filter: blur(4px); }
+.landscape-card .card-score { font-size: 12px; }
 .no-poster { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 12px; }
 
 .landscape-rail { gap: 10px; padding-top: 20px; padding-bottom: 34px; }
@@ -290,6 +294,7 @@ video { display: block; width: 100%; max-height: calc(100dvh - 185px); aspect-ra
   .card-hover-copy strong { font-size: 13px; }
   .card-hover-meta { font-size: 10px; }
   .poster-card { flex-basis: 116px; }
+  .card-score { top: 6px; left: 6px; padding: 3px 5px; font-size: 11px; }
   .card-title { margin-top: 7px; font-size: 12px; }
   .card-sub { font-size: 10px; }
   .empty-progress { padding-top: 12px; padding-bottom: 15px; font-size: 12px; }
