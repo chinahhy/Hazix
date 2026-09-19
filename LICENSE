@@ -1,17 +1,37 @@
-MIT License
+Proprietary License — All Rights Reserved
 
 Copyright (c) 2026 HDAO TV contributors
 Copyright (c) 2026 Jimmy (Autodarts-TV)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+All rights reserved.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This source code is published for reading and personal evaluation only. No
+permission is granted to use, copy, modify, merge, publish, distribute,
+sublicense, sell, or otherwise exploit this software or any derivative work of
+it, in whole or in part, for any commercial purpose, without the prior written
+permission of the copyright holders.
+
+You may:
+
+- read this source code;
+- build and run it for your own private, non-commercial use;
+- keep a local copy for that purpose.
+
+You may not:
+
+- redistribute this software or any modified version of it;
+- publish it, or a derivative of it, to any app store, package registry, or
+  public download location;
+- use it, or a derivative of it, commercially or as part of a paid product or
+  service;
+- remove or alter this notice or any other copyright notice.
+
+No trademark or brand rights are granted. The project name, logo, and visual
+identity remain the property of the copyright holders.
+
+Note on earlier versions: releases published before 2026-09-19 were distributed
+under the MIT License. Rights already granted for those versions are not
+affected by this change; this license applies to this version and later ones.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
