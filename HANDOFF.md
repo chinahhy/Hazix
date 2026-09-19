@@ -597,3 +597,47 @@ SHA-256                      → f2a08a7b… 与 dist/SHA256SUMS.txt 一致
 - NAS 中转站：本机实测通过（上面那张表）；
 - **未验证**：真机上的完整升级链路（NAS → 下载 → 签名校验 → 系统安装器），
   这台 Mac 没有可用安卓设备（`adb devices` 为空），必须在用户电视上确认。
+
+### 5. NAS 中转站已真实部署（极空间 Z4Pro，10.0.0.104:18088）
+
+用户的 NAS 是极空间 Z4Pro（x86_64，Docker 27.5.1 + Compose v2.21），已按下面的方式部署完成：
+
+- compose：`/zspace/zsrp/zdocker/compose_config/hazix-mirror/docker-compose.yml`
+  （沿用极空间自带约定目录 `/zspace/zsrp/zdocker/compose_config/<名字>/`）
+- 缓存：同目录 `./cache`，首轮 TV 包 + 手机包 + SHA256SUMS = 5.4MB
+- 访问入口：`http://10.0.0.104:18088`（`10.x` 属于 RFC1918，正好在
+  `network_security_config.xml` 放行的私有网段里，电视端不需要额外配置）
+
+**这台 NAS 的网络有坑，必须知道**：它**直连 github.com 不通**——宿主机和容器里对
+`github.com`(20.205.243.166) 的 TCP 443 都是超时，而同一时刻用户 Mac 走同一个出口能到
+GitHub（3MB/s），容器访问 `hdao.tv` 也正常。所以中转站的回源改成**走 GitHub 加速镜像**，
+实测能用的：`ghfast.top`、`ghproxy.net`（问版本 + 下资产都行）、
+`gh-proxy.com`（**只代理资源、拒绝网页**，只能下资产）。当前配置：
+
+```yaml
+- UPSTREAM=https://ghfast.top/https://github.com
+- UPSTREAM_FALLBACKS=https://ghproxy.net/https://github.com,https://gh-proxy.com/https://github.com,https://github.com
+```
+
+`tools/nas-release-proxy.mjs` 因此支持多候选回源：**问版本号和下资产分别按候选列表回退**
+（因为有些镜像只具备其中一种能力）。
+
+**验收结果**（从用户 Mac 上、也就是电视的视角实测）：
+
+| 项目 | 结果 |
+| --- | --- |
+| `/healthz` | `{"ok":true,...}` |
+| 版本查询 | `302` + `X-Hazix-Tag: v3.6.4` |
+| TV 包下载 | 200，2.8MB，约 2 秒（回源走加速镜像） |
+| 哈希 | `f2a08a7b…`，与 `dist/SHA256SUMS.txt` 一致 |
+| 重复下载 3 次 | 哈希一致；服务端「已缓存」只出现 3 次 = 没有重复回源 |
+| Range 断点续传 | `206`，字节数正确 |
+| 手机包 / SHA256SUMS.txt | 均 200 |
+
+**部署时踩的三个坑**（已写进 `tools/README-nas-mirror.md`）：
+
+1. compose 的 `command` 被镜像 CMD 吃掉，实际只跑了 `node`，容器静默重启、日志为空——
+   改用 `entrypoint: ["node", "/app/nas-release-proxy.mjs"]`；
+2. 中文路径下 `new URL(import.meta.url).pathname` 是百分号编码，启动判断永远为假；
+3. 加速镜像的 URL 形状是 `<前缀>/<owner>/<repo>/...`，不能把完整 github URL 再拼一次
+   （我第一次就拼成了 `gh-proxy.com/https://github.com/https://github.com/...`，全是 404）。

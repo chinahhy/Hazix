@@ -102,6 +102,54 @@ curl -L -o /tmp/tv.apk http://<NAS地址>:8088/chinahhy/Hazix/releases/download/
 shasum -a 256 /tmp/tv.apk     # 与 dist/SHA256SUMS.txt 里的一致
 ```
 
+## 已部署实例（极空间 Z4Pro，2026-09-19）
+
+本仓库的这套已经在用户家里跑起来了，后来者可以直接照抄：
+
+| 项 | 值 |
+| --- | --- |
+| NAS | 极空间 Z4Pro（x86_64） |
+| 中转站地址 | `http://10.0.0.104:18088` |
+| compose 位置 | `/zspace/zsrp/zdocker/compose_config/hazix-mirror/docker-compose.yml` |
+| 缓存位置 | 同目录下 `./cache`（首轮 5.4MB） |
+| SSH | 端口不是 22，见用户 Mac 上 `~/.ssh/config` 的 `nas` 条目 |
+
+### 这台 NAS 的关键问题：直连 github.com 不通
+
+实测：NAS 宿主机和容器里对 `github.com`（解析到 `20.205.243.166`）**TCP 443 直接超时**，
+但同一时刻用户的 Mac 走同一个出口下载 GitHub 是 3MB/s，容器访问 `hdao.tv` 也正常。
+所以问题不在 Docker，而在这台 NAS 的网络路径。
+
+解决方法是让中转站**通过 GitHub 加速镜像回源**：
+
+```yaml
+- UPSTREAM=https://ghfast.top/https://github.com
+- UPSTREAM_FALLBACKS=https://ghproxy.net/https://github.com,https://gh-proxy.com/https://github.com,https://github.com
+```
+
+从这台 NAS 实测的镜像能力（很重要，镜像之间功能不一样）：
+
+| 镜像 | 问版本号 | 下资产 |
+| --- | --- | --- |
+| `ghfast.top` | ✅ 200 | ✅ 206 |
+| `ghproxy.net` | ✅ 200 | ✅ 206 |
+| `gh-proxy.com` | ❌ 403（明确拒绝网页，只代理资源） | ✅ 206 |
+| `gh.llkk.cc` | ❌ 超时 | ❌ 超时 |
+| `ghproxy.cc` | ❌ 连不上 | — |
+
+因此脚本把"问版本"和"下资产"分开处理：谁能解析版本号就用谁，谁能下资产就用谁，
+并逐个候选回退。`gh-proxy.com` 这类"只能下资产"的镜像放在 `UPSTREAM_FALLBACKS` 里照样有用。
+
+### 部署时踩到的三个坑
+
+1. **compose 里 `command` 会被镜像的 CMD 吃掉**：写 `command: ["node", "/app/x.mjs"]`
+   实际只跑了 `node`（`.mjs` 丢了），容器静默退出、日志为空、反复重启。
+   改成 `entrypoint: ["node", "/app/nas-release-proxy.mjs"]` 才可靠。
+2. **中文路径下 `new URL(import.meta.url).pathname` 是百分号编码的**，
+   和 `path.resolve(process.argv[1])` 永远不相等，进程起来却什么都不监听。用 `fileURLToPath`。
+3. **加速镜像的 URL 形状**：`<镜像前缀>/<owner>/<repo>/...`，
+   不能拼成 `<镜像前缀>/https://github.com/<owner>/...`（会 404）。
+
 ## 常见问题
 
 - **电视能不能访问**：电视和 NAS 在同一局域网时，直接用 `192.168.x.x:8088` 或 `nas.local:8088`。

@@ -30,7 +30,29 @@ import { pipeline } from 'node:stream/promises';
 const PORT = Number(process.env.PORT || 8088);
 const HOST = process.env.HOST || '0.0.0.0';
 const CACHE_DIR = process.env.CACHE_DIR || '/cache';
+/**
+ * 回源地址。默认直连 github.com；如果这台 NAS（或它所在的网络）到 GitHub 不通，
+ * 用 UPSTREAM 指一个 GitHub 加速前缀，例如：
+ *   UPSTREAM=https://gh-proxy.com/https://github.com
+ * 脚本会把请求拼成 <UPSTREAM>/<repo>/releases/... ，并把上游 Location 里的
+ * github.com 也改写回同一个前缀，保证客户端不会拿到它自己访问不了的地址。
+ */
 const UPSTREAM = (process.env.UPSTREAM || 'https://github.com').replace(/\/+$/, '');
+/**
+ * 回源候选，按顺序尝试，逗号分隔。默认只有 github.com。
+ * 有些网络到 GitHub 不通但对加速镜像通，而加速镜像的能力不一样：
+ * 例如 gh-proxy.com **只代理资源下载、拒绝网页请求**，所以它下得动 APK 却问不到版本号。
+ * 因此每个候选各司其职：谁能解析版本号就用谁解析，谁能下资产就用谁下。
+ *
+ * 例：UPSTREAM=https://github.com,https://gh-proxy.com/https://github.com
+ */
+const UPSTREAMS = [UPSTREAM, ...(process.env.UPSTREAM_FALLBACKS || '')
+  .split(',')
+  .map((value) => value.trim().replace(/\/+$/, ''))
+  .filter(Boolean)]
+  .filter((value, index, all) => all.indexOf(value) === index);
+const GITHUB_URL = /^https:\/\/([a-z0-9-]+\.)*github\.com\//i;
+const isProxy = (upstream) => !/^https:\/\/github\.com$/i.test(upstream);
 const REPOSITORY = process.env.REPOSITORY || 'chinahhy/Hazix';
 const LOG = process.env.LOG !== '0';
 
@@ -65,16 +87,65 @@ export function releaseRoute(pathname) {
   return null;
 }
 
+/**
+ * Builds the URL this process actually fetches.
+ *
+ * With the default upstream this is github.com itself. When UPSTREAM is an
+ * accelerator (`https://gh-proxy.com/https://github.com`), a github.com URL is
+ * fed to it as-is - `https://gh-proxy.com/https://github.com/<path>` - which is
+ * the form these services expect. The githubusercontent.com hosts that release
+ * downloads redirect to are left alone: accelerators resolve those themselves.
+ */
+function upstreamUrl(upstream, githubUrl) {
+  if (!isProxy(upstream)) return githubUrl;
+  // Callers hand in a full github.com URL; an accelerator wants the bare path
+  // appended to its prefix (`<prefix>/<owner>/<repo>/...`), so drop the host
+  // first. Doing it here keeps both call sites from having to know the shape.
+  const path = githubUrl.replace(/^https:\/\/github\.com/i, '');
+  return `${upstream}${path}`;
+}
+
+const TAG_PATTERN = /^v\d+(\.\d+)*$/;
+
+/** Reads the release tag out of a response, however the upstream reported it. */
+async function tagFromResponse(response) {
+  const direct = response.headers.get('location')
+    || response.headers.get('x-hazix-tag')
+    || response.url
+    || '';
+  const fromHeader = direct.match(/\/releases\/tag\/([^/?#]+)/)?.[1];
+  if (fromHeader) return fromHeader;
+  // Accelerators that refuse API-style requests may still answer a browser with
+  // the rendered tag page, so fall back to scanning the body for the tag link.
+  const body = await response.text().catch(() => '');
+  const linked = body.match(/\/releases\/tag\/(v\d+(?:\.\d+)*)/)?.[1];
+  if (linked) return linked;
+  const named = body.match(/\b(v\d+(?:\.\d+)*)\b/)?.[1];
+  return named && TAG_PATTERN.test(named) ? named : null;
+}
+
 async function resolveLatestTag() {
-  const response = await fetch(`${UPSTREAM}/${REPOSITORY}/releases/latest`, {
-    redirect: 'manual',
-    headers: { 'User-Agent': 'hazix-nas-mirror' },
-    signal: AbortSignal.timeout(15_000),
-  });
-  const location = response.headers.get('location') || '';
-  const tag = location.match(/\/releases\/tag\/([^/?#]+)/)?.[1];
-  if (!tag) throw new Error(`上游没有给出 release tag（HTTP ${response.status}）`);
-  return tag;
+  let lastError = null;
+  for (const upstream of UPSTREAMS) {
+    try {
+      const response = await fetch(upstreamUrl(upstream, `https://github.com/${REPOSITORY}/releases/latest`), {
+        // Accelerators may follow the tag redirect themselves and answer 200
+        // with the final URL; a direct github.com upstream answers 302.
+        redirect: 'follow',
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; hazix-nas-mirror)' },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const tag = await tagFromResponse(response);
+      if (!tag) throw new Error('响应里没有版本号');
+      log('版本号来自', upstream);
+      return tag;
+    } catch (error) {
+      lastError = error;
+      log('解析版本号失败', upstream, error.message);
+    }
+  }
+  throw new Error(`所有回源都问不到最新版本：${lastError?.message || '未知错误'}`);
 }
 
 /**
@@ -120,14 +191,38 @@ async function downloadToCache(url, file, type) {
 
 async function serveDownload(route, req, res) {
   const pathname = `/${REPOSITORY}/releases/download/${route.tag}/${route.name}`;
-  const target = `${UPSTREAM}${pathname}`;
+  const githubUrl = `https://github.com${pathname}`;
   let entry = await cachedEntry(pathname);
   const range = req.headers.range;
+
+  /** The first upstream that answers this asset, or null when none can. */
+  async function reachableTarget() {
+    let lastError = null;
+    for (const upstream of UPSTREAMS) {
+      const candidate = upstreamUrl(upstream, githubUrl);
+      try {
+        const probe = await fetch(candidate, {
+          method: 'HEAD',
+          redirect: 'follow',
+          headers: { 'User-Agent': 'hazix-nas-mirror' },
+          signal: AbortSignal.timeout(15_000),
+        });
+        // An accelerator answers 404 for a path it does not proxy, which is how
+        // a "resolves the tag but cannot serve assets" candidate drops out.
+        if (probe.ok) return candidate;
+        lastError = new Error(`HTTP ${probe.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+      log('下载回源不可用', upstream, lastError.message);
+    }
+    throw new Error(`所有回源都拿不到更新包：${lastError?.message || '未知错误'}`);
+  }
 
   // Range 请求直接吃缓存（APK 断点续传）；整文件请求先确认上游没变。
   if (entry && !range) {
     try {
-      const head = await upstreamHead(target);
+      const head = await upstreamHead(await reachableTarget());
       if (head.etag && entry.meta.etag && head.etag !== entry.meta.etag) {
         log('上游已更新，重新缓存', route.name);
         entry = null;
@@ -143,7 +238,7 @@ async function serveDownload(route, req, res) {
   if (!entry) {
     if (range) {
       // 没有缓存却要续传：直接透传上游，不落盘。
-      const upstream = await fetch(target, { headers: { Range: range }, redirect: 'follow', signal: AbortSignal.timeout(600_000) });
+      const upstream = await fetch(await reachableTarget(), { headers: { Range: range }, redirect: 'follow', signal: AbortSignal.timeout(600_000) });
       res.writeHead(upstream.status, {
         'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream',
         'Content-Length': upstream.headers.get('content-length') || '',
@@ -153,7 +248,11 @@ async function serveDownload(route, req, res) {
       if (!upstream.body) return res.end();
       return pipeline(Readable.fromWeb(upstream.body), res).catch(() => res.destroy());
     }
-    entry = await downloadToCache(target, cachePathFor(pathname), 'application/vnd.android.package-archive');
+    entry = await downloadToCache(
+      await reachableTarget(),
+      cachePathFor(pathname),
+      'application/vnd.android.package-archive',
+    );
   }
 
   const info = await stat(entry.file);
@@ -191,7 +290,18 @@ export function createServer() {
 
       if (route.kind === 'latest') {
         const tag = await resolveLatestTag();
-        return send(res, 302, { Location: `${UPSTREAM}/${REPOSITORY}/releases/tag/${tag}`, 'Cache-Control': 'no-store' }, '');
+        // Answer with the tag directly instead of a redirect: the client may not
+        // be able to reach github.com, and the tag is all it needs.
+        return send(
+          res,
+          302,
+          {
+            Location: `${UPSTREAM}/${REPOSITORY}/releases/tag/${tag}`,
+            'X-Hazix-Tag': tag,
+            'Cache-Control': 'no-store',
+          },
+          '',
+        );
       }
       return await serveDownload(route, req, res);
     } catch (error) {
