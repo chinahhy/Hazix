@@ -491,3 +491,21 @@ cd web && pnpm run check && pnpm test           # 8/8 通过
   状态语义与预览的 `aria-pressed` 一致；
 - Kotlin 改动按第 3 节用 `/tmp/hazix` 编译 + `lintDebug` 验证；音效本身**必须真机听**，
   这台 Mac 没有可用设备（`adb devices` 为空），届时要在交接里写明「未真机验证」。
+
+### 8. 修正（用户第三次反馈的追加要求）
+
+用户要求：**去掉按键音效开关**，音效默认开启，关闭交给电视的系统设置。已改：
+
+- `web/public/app.js`：删除顶栏音效开关按钮、`soundToggleMarkup()` 与开关的点击处理；
+  只保留 keydown → `playMoveSound/playConfirmSound/playBackSound`。
+- `web/public/sound.js`：删除 localStorage 开关与 `soundEnabled/setSoundEnabled/resetSoundForTest`，
+  音效恒定开启（浏览器端由系统/设备静音控制，Android 端由系统「按键音」设置控制）。
+- `web/public/app.css`：删除 `.sound-toggle` 规则（含两处断点）。
+- 结果：顶栏右侧只剩「检查更新 / 搜索 / 我的」，导航高 84px、分类 21px 不变。
+
+**这一轮我自己踩的坑，写下来免得再犯**：用 Python 脚本按「起点字符串 → 终点字符串」整段删除
+代码时，起点取的是音效开关的注释，终点取的是 `let epoch = 0`，结果把夹在中间的
+`const icon = name => ...` 一起删掉了——`node --check` 语法检查**通过**（只是少了一个声明），
+但运行时报 `ReferenceError: icon is not defined`，整个首页白屏（nav 和 content 全空）。
+教训：删代码后不能只看 `node --check`，必须真的打开页面看 DOM——
+`/tmp/diag-app.mjs` 用 CDP 抓 `Runtime.exceptionThrown` 一眼就能看到。
