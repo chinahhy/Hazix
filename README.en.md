@@ -27,11 +27,15 @@ and the provider's website is never loaded.
   posters, and focus drives the backdrop, detail panel, and a muted auto-preview.
 - Seven catalogue entries in the top bar — Movies, Series, Variety, Documentary,
   Anime, Short Drama — plus search and a manual **Check for updates** entry.
-- Poster grids with seamless paging that keeps the scroll position and cursor
-  where you left them when you come back from a detail page.
+- Category, home and search all keep their state across a detail page: the scroll
+  position, the cursor on the poster that was opened, and the search query with
+  its results.
 - Continue watching, de-duplicated by program ID and normalised title.
 - Explicit D-pad focus navigation with visible focus decoration.
-- Native HLS playback through ExoPlayer, plus GitHub-release based in-app updates.
+- Native HLS playback through ExoPlayer with subtitle and audio track selection
+  and 0.5×–2.0× playback speed;
+- In-app updates from GitHub Releases, verifying the download origin, size,
+  SHA-256, package ID, version code, and signing certificate.
 
 **Phone**
 
@@ -139,9 +143,10 @@ installer.
 
 | Key | Browsing | Player |
 | --- | --- | --- |
-| D-pad | Move focus / scroll | Left/right seek ±10 s, up/down switch episode |
-| OK / Enter | Open the focused item | Play/pause and show the control overlay |
-| Back | Previous screen | Save progress and leave the player |
+| D-pad | Move focus / scroll | Left/right seek ±10 s, up/down switch episode; with playback settings open, up/down pick a row and left/right change its value |
+| OK / Enter | Open the focused item | Play/pause; hold to open playback settings |
+| Menu / Settings | — | Open or close playback settings (subtitles · audio · speed) |
+| Back | Previous screen | Close playback settings first; press again to save progress and leave |
 
 ## Browser preview
 

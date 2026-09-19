@@ -129,6 +129,33 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
   `LICENSE` 与 `THIRD_PARTY_NOTICES.md` 保持英文——法律文本惯例，第三方许可原文必须逐字保留。
   此前一度把英文放在 `README.md`，已按用户要求交换。
 
+### 9. 第二轮改动（同一会话，Codex 仍在停用期）
+
+用户要求按评估清单继续优化。已完成的提交：
+
+| 提交 | 内容 |
+| --- | --- |
+| `e71c584` | 删除未参与构建的遗留 `app/` 模块（758 行死代码 + 仓库内唯一的第三方 MIT 代码），新增 `ROADMAP.md` |
+| `e867142` | 首页与搜索页的返回状态保持（`HomeScreenState` / `SearchScreenState` 提升到导航层） |
+| `c6cb1fd` | 修 CI 报出的可见性错误：`LoadState` 原为文件私有，被新状态类作为公开属性暴露，改为 `internal` |
+| `4b12005` | 播放器字幕 / 音轨 / 倍速，新增文件 `nativeapp/.../ui/PlayerSettings.kt` |
+
+**新增约定（新页面必须遵守）**：屏幕状态由导航层 `HdaoTvApp` 持有，屏幕通过参数接收
+（`HomeScreenState` / `SearchScreenState` / `CategoryScreenState`），
+返回时按 `lastOpenedVodId` 滚动回原卡片并**显式请求焦点**。
+把状态写在屏幕内部的 `remember` 里就会重现"返回后丢状态"的问题——这个问题在分类页、
+首页、搜索页各出现过一次。
+
+**播放器设置面板的入口**：菜单键（`KEYCODE_MENU` / `SETTINGS` / `TV_CONTENTS_MENU` /
+`BUTTON_Y` / `PROG_BLUE`）或**长按 OK**；上下选行、左右调整、返回关闭。
+面板不持有可聚焦子元素，不会与播放器的焦点处理冲突。
+**注意 `KEYCODE_DPAD_CENTER` 的 `repeatCount >= 1` 被用作长按**，改动 OK 键逻辑时要留意。
+
+**这一轮仍未真机验证**：首页/搜索的返回行为、字幕与音轨是否真能切换、长按 OK 在真实遥控器上
+是否可达。这些都属于"看出来的"行为，CI 只能保证编译、lint 与单测通过。
+**额外风险**：`PlayerSettings.kt` 里的 `setOverrideForType` / `clearOverridesOfType` 只做了静态校验，
+从未在真实媒体流上跑过——若某个片源切换字幕后黑屏或无声，优先怀疑这里。
+
 ### 8. 当前发布状态（交接时的实际状态）
 
 - **v3.4.0 已发布**：<https://github.com/chinahhy/Hazix/releases/tag/v3.4.0>，
