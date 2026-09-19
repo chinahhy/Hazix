@@ -23,13 +23,13 @@ jobs:
         working-directory: web
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
       - name: Set up Node.js 22
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: pnpm
@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Java 17
         uses: actions/setup-java@v6
         with:
@@ -88,7 +88,7 @@ jobs:
           done
       - name: Upload reports on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-reports
           path: |
@@ -105,7 +105,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Java 17
         uses: actions/setup-java@v6
         with:
@@ -156,7 +156,7 @@ jobs:
           done
           sha256sum ci-apks/*.apk
       - name: Upload installable APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Hazix-APKs-${{ github.sha }}
           path: ci-apks/
