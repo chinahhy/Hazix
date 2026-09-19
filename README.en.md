@@ -31,6 +31,8 @@ and the provider's website is never loaded.
   position, the cursor on the poster that was opened, and the search query with
   its results.
 - Continue watching, de-duplicated by program ID and normalised title.
+- Favourites from the detail page, shown as a row on the home screen; the search
+  screen keeps the last eight queries for one-press reuse.
 - Explicit D-pad focus navigation with visible focus decoration.
 - Native HLS playback through ExoPlayer with subtitle and audio track selection
   and 0.5×–2.0× playback speed;

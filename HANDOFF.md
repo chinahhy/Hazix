@@ -177,3 +177,25 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
   2. 电影分类向下翻很多 → 进入某片详情 → 返回：光标应回到刚才那张卡片，滚动位置不跳、不重载第一页。
   3. 顶部导航右侧应出现「检查更新」，点击后显示"已经是最新版本 v3.4.0"。
   另外，已安装的 v3.3.9 启动时会发现 v3.4.0 并可应用内升级，这正好覆盖完整升级链路。
+
+### 10. 第三轮改动（同一会话，Codex 仍在停用期）
+
+| 提交 | 内容 |
+| --- | --- |
+| `f447f35` | 收藏（详情页开关 + 首页「我的收藏」行）与搜索历史（最近 8 条），新增 `data/UserCollections.kt` 与 `data/UserCollectionsTest.kt` |
+
+**新增存储**（都在 `data/UserCollections.kt`，与 `WatchProgress` 同构，只用本机 SharedPreferences）：
+`Favorites`（`all()` / `isFavorite()` / `toggle()`，存为一条 JSON 数组，最多 100 条）与
+`SearchHistory`（`all()` / `record()` / `clear()`，默认 8 条）。
+
+**可单测的纯函数**（同文件顶层，`UserCollectionsTest` 覆盖）：
+`orderedFavorites`、`cleanSearchTerms`、`updatedSearchTerms`、`FavoriteEntry.toVod`。
+**新增纯逻辑请沿用这个做法**：把与 Android 无关的部分抽成顶层函数，否则单测跑不了
+（JVM 单元测试里没有真的 `org.json`，直接测 store 会失败）。
+
+**UI 接线**：`HdaoTvApp` 创建两个 store 并传下去；首页的收藏行在每次进入首页时重新读取
+（`LaunchedEffect(Unit) { state.favoriteItems = favorites.all().map { it.toVod() } }`），
+因此在详情页收藏后返回首页即可看到。
+
+**仍未真机验证**：收藏按钮的焦点顺序、首页收藏行的焦点与滚动、「最近搜索」一排按钮的导航。
+**注意**：收藏与搜索历史目前**只在电视端实现**，手机端还没有（已记入 `ROADMAP.md`）。
