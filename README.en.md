@@ -58,7 +58,6 @@ and the provider's website is never loaded.
 | `nativeapp/` | Android TV / Google TV app (`tv.hdao.app`) — the main module |
 | `mobileapp/` | Android phone app (`tv.hdao.mobile`), reuses the TV data layer |
 | `web/` | Browser preview used to iterate on layout and interaction before packaging |
-| `app/` | Legacy WebView v1 source, kept for reference only, not part of the build |
 | `dist/` | Locally archived, versioned APKs and their SHA-256 ledger |
 | `.github/workflows/` | `ci.yml` (checks + APK artifacts) and `release-apks.yml` (tagged releases) |
 

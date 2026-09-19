@@ -14,7 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HdaoTV"
-// The original WebView implementation remains in :app as a reference and fallback.
+rootProject.name = "Hazix"
 include(":nativeapp")
 include(":mobileapp")

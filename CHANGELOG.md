@@ -4,6 +4,12 @@
 [GitHub Releases](https://github.com/chinahhy/Hazix/releases) 上；本地副本归档在 `dist/`，
 校验值记录在 `dist/SHA256SUMS.txt`。
 
+## 未发布
+
+- 删除遗留的 `app/` 模块：它从未参与 Gradle 构建（`settings.gradle.kts` 只包含
+  `:nativeapp` 与 `:mobileapp`），是 758 行死代码，也是仓库内唯一源自第三方 MIT 项目的代码。
+  删除后仓库不再包含该第三方代码，相关许可义务随之消失。
+
 ## 3.4.0 — 2026-09-19
 
 - 电视端：修复播放源起播较慢时（例如动漫剧集）进度条与控制层永不隐藏的问题。

@@ -29,18 +29,18 @@ its DNS-over-HTTPS module are maintained by Square under the Apache License 2.0.
 reference only. No FongMi/TV source code, crawler configuration, or GPL-covered
 implementation is bundled in this project.
 
-## Legacy WebView v1
+## Legacy WebView v1 (removed)
 
-The inactive `app/` module keeps the earlier single-WebView implementation.
-Its TV-oriented WebView structure, D-pad spatial-navigation approach, and
+The earlier single-WebView implementation lived in an `app/` module. Its
+TV-oriented WebView structure, D-pad spatial-navigation approach, and
 virtual-cursor approach were adapted from
 [Autodarts-TV](https://github.com/TheJim03/Autodarts-TV), licensed under the MIT
 License.
 
-The adapted portions remain under the MIT License, and the notice below is
-retained for them. It lives here rather than in `LICENSE` because `LICENSE` now
-carries this project's own proprietary terms; the Autodarts-TV copyright applies
-only to the code adapted from that project.
+That module was deleted on 2026-09-19: it was never part of the Gradle build and
+is no longer present in this repository, so no Autodarts-TV code is bundled here
+any more. The upstream MIT notice is kept below as a record of the earlier
+attribution.
 
 ```text
 MIT License

@@ -87,9 +87,11 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 
 - 已处理：用户确认 `Jimmy (Autodarts-TV)` 不是本人。它是第三方 MIT 项目
   [Autodarts-TV](https://github.com/TheJim03/Autodarts-TV) 的版权人，旧的 `app/` 模块改编过其代码。
-  该 MIT 声明已从 `LICENSE` 移到 `THIRD_PARTY_NOTICES.md` 完整保留（MIT 要求必须保留），
-  `LICENSE` 只承载本项目自己的专有条款。
-  **注意：将来若删除不再使用的 `app/` 模块，这项 MIT 义务才会随之消失。**
+  该 MIT 声明已从 `LICENSE` 移到 `THIRD_PARTY_NOTICES.md` 完整保留。
+- **2026-09-19 更新**：`app/` 模块已整体删除——它从未参与 Gradle 构建（`settings.gradle.kts`
+  只 include 了 `:nativeapp` 与 `:mobileapp`），是 758 行死代码，也是仓库内唯一源自第三方
+  MIT 项目的代码。删除后仓库已不含该第三方代码，MIT 义务随之消失；
+  `THIRD_PARTY_NOTICES.md` 里只保留历史致谢。
 - 仓库目前在 GitHub 上是 **public**。用户以为只自己用；若想私有需在仓库设置里改。
 - `README.md` 是**中文主版本**（GitHub 仓库首页默认展示的就是它），`README.en.md` 是英文镜像，
   **两份要同步维护**。此前一度把英文放在 `README.md`，已按用户要求交换回来。

@@ -28,9 +28,7 @@ You may not:
 No trademark or brand rights are granted. The project name, logo, and visual
 identity remain the property of the copyright holders.
 
-Third-party components keep their own licenses; see THIRD_PARTY_NOTICES.md. In
-particular, the legacy `app/` module adapts MIT-licensed code from Autodarts-TV,
-and that notice is retained there.
+Third-party components keep their own licenses; see THIRD_PARTY_NOTICES.md.
 
 Note on earlier versions: releases published before 2026-09-19 were distributed
 under the MIT License. Rights already granted for those versions are not

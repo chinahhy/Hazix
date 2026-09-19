@@ -45,7 +45,6 @@
 | `nativeapp/` | Android TV / Google TV 应用（`tv.hdao.app`），主模块 |
 | `mobileapp/` | Android 手机应用（`tv.hdao.mobile`），复用 TV 数据层 |
 | `web/` | 浏览器预览，用于打包前确认布局与交互 |
-| `app/` | 旧 WebView v1 源码，仅作参考，不参与构建 |
 | `dist/` | 本地按版本归档的 APK 与 SHA-256 清单 |
 | `.github/workflows/` | `ci.yml`（检查 + APK 产物）与 `release-apks.yml`（标签发布） |
 
