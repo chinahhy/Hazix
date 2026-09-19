@@ -50,4 +50,20 @@ object NetworkClients {
         .readTimeout(18, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    /**
+     * Same client but resolving through the system resolver instead of
+     * DNS-over-HTTPS.
+     *
+     * On a network whose proxy only routes the fake IPs it hands out itself,
+     * the address an encrypted resolver returns is the real one and connecting
+     * to it can time out. This client is the second attempt for exactly that
+     * case, and the encrypted path covers the opposite one.
+     */
+    val systemDnsClient: OkHttpClient = bootstrapClient.newBuilder()
+        .dns(Dns.SYSTEM)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(18, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .build()
 }

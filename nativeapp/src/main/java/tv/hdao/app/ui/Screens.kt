@@ -128,8 +128,15 @@ fun HomeScreen(
         state.catalog = LoadState.Loading
         state.catalog = try {
             LoadState.Ready(repository.featured(force = state.retry > 0))
-        } catch (error: Exception) {
-            LoadState.Failed(error.message ?: "网络连接失败")
+        } catch (first: Exception) {
+            // One silent retry before showing the error: most failures here are a
+            // transient network blip, and the user should not have to press retry.
+            delay(1_200L)
+            try {
+                LoadState.Ready(repository.featured(force = true))
+            } catch (second: Exception) {
+                LoadState.Failed(second.message ?: "网络连接失败")
+            }
         }
         state.markLoaded()
     }

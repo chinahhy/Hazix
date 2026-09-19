@@ -199,3 +199,32 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 
 **仍未真机验证**：收藏按钮的焦点顺序、首页收藏行的焦点与滚动、「最近搜索」一排按钮的导航。
 **注意**：收藏与搜索历史目前**只在电视端实现**，手机端还没有（已记入 `ROADMAP.md`）。
+
+### 11. 电视端网络故障排查（2026-09-19）
+
+用户报告两个现象，成因不同：
+
+1. **「检查更新失败（403）」**：GitHub 对未登录请求按**公网 IP** 限流（60 次/小时）。
+   开发机在同一出口网络下反复轮询 GitHub API，会把整个家庭的额度耗光，电视端随即收到 403。
+   **排查纪律：不要用 `api.github.com` 轮询 CI 状态**，改用工作流徽章
+   （`https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg?branch=main`，不占配额）
+   或直接下载 release 资产（`releases/download/...`，也不占配额）。配额每小时重置。
+   代码侧已把 403/429 换成「GitHub 暂时限制了更新检查，请稍后再试」。
+
+2. **「无法连接影视数据源」**：从开发机实测 `https://hdao.tv/api/vods/featured` 返回 **HTTP 200**，
+   说明站点正常；但本机 DNS 把 `hdao.tv` 解析到 **`198.18.5.171`（代理 Fake-IP 保留段）**，
+   即该网络使用 Fake-IP 模式的代理。电视能拿到 GitHub 的 403 响应，说明外网可达，
+   失败只发生在 hdao.tv 这条路径上。根因尚未确诊，因此本轮做了两件事：
+   - **把真实原因显示出来**：`HdaoApi.request` 之前把 `IOException` 的原文吞掉，只留一句笼统提示；
+     现在会把底层原因（超时／连接被拒／解析失败原文）拼进界面文案。**下次报错截图即可确诊。**
+   - **增加第二条解析路径**：`NetworkClients.systemDnsClient`（`Dns.SYSTEM`）作为兜底，
+     `HdaoApi.request` 第一次失败后用它整条重试。
+   - **不要**把系统 DNS 结果与加密 DNS 结果混在同一个 `lookup` 里返回：
+     `NetworkClientsTest` 明确断言主路径不得出现 `198.18.`／`198.19.`／`28.` 开头的 Fake-IP，
+     这是 v3.0.1 的既定设计，改动会直接让测试失败。
+
+**遗留缺口**：播放器（`PlayerScreen` 的 `OkHttpDataSource`）只使用加密 DNS 客户端，
+没有第二条解析路径；若内容接口靠兜底恢复而播放仍失败，就是这个原因。
+
+**测试脆弱点**：`NetworkClientsTest` 会**访问真实网络**（请求 hdao.tv）。
+若站点限制 GitHub Actions 出口 IP，CI 会无故变红——排查 CI 失败时先看这一条。

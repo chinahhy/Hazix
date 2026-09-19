@@ -70,16 +70,33 @@ class HdaoApi(
             .header("Accept", "application/json")
             .header("User-Agent", API_USER_AGENT)
             .build()
+        // Encrypted DNS first. If that path cannot connect at all - which happens
+        // on networks whose proxy only routes its own fake IPs - retry once
+        // through the system resolver before reporting a failure.
         return try {
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) error("服务器返回 ${response.code}")
-                JSONObject(body)
-            }
+            execute(client, request)
         } catch (error: IOException) {
-            throw IOException("无法连接影视数据源，应用已尝试加密 DNS，请检查网络后重试", error)
+            try {
+                execute(NetworkClients.systemDnsClient, request)
+            } catch (fallbackError: IOException) {
+                throw IOException(
+                    "无法连接影视数据源（${describe(fallbackError)}）。" +
+                        "已尝试加密 DNS 与系统 DNS，请检查网络后重试",
+                    fallbackError,
+                )
+            }
         }
     }
+
+    private fun execute(httpClient: OkHttpClient, request: Request): JSONObject =
+        httpClient.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) error("服务器返回 ${response.code}")
+            JSONObject(body)
+        }
+
+    private fun describe(error: IOException): String =
+        error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
 
     private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
 }

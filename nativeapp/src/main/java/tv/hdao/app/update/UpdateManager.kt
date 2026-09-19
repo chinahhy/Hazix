@@ -47,7 +47,16 @@ class UpdateManager(private val context: Context) {
             .header("User-Agent", API_USER_AGENT)
             .build()
         val root = client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("检查更新失败（${response.code}）")
+            if (!response.isSuccessful) {
+                error(
+                    when (response.code) {
+                        // GitHub limits unauthenticated callers per public IP, so a
+                        // household that has been polling the API reaches this.
+                        403, 429 -> "GitHub 暂时限制了更新检查，请稍后再试"
+                        else -> "检查更新失败（${response.code}）"
+                    },
+                )
+            }
             JSONObject(response.body?.string().orEmpty())
         }
         val tag = root.optString("tag_name")
