@@ -3,6 +3,7 @@ package tv.hdao.app.ui
 import android.content.ActivityNotFoundException
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +44,10 @@ import java.io.File
 
 @Composable
 fun rememberUpdateViewModel(): UpdateViewModel {
-    val activity = LocalContext.current as ComponentActivity
+    // LocalActivity rather than LocalContext: casting a Context to an Activity is
+    // what lint's ContextCastToActivity check reports.
+    val activity = LocalActivity.current as? ComponentActivity
+        ?: error("Hazix in-app updates need a ComponentActivity host")
     return remember(activity) { ViewModelProvider(activity)[UpdateViewModel::class.java] }
 }
 
