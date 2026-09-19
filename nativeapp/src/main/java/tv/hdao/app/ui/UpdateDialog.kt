@@ -128,8 +128,8 @@ fun UpdateCoordinator(updateViewModel: UpdateViewModel) {
             onDismiss = {},
         )
         is UpdateUiState.Ready -> UpdatePrompt(
-            title = "更新包校验完成",
-            message = "接下来由 Android 系统安装器完成升级，现有观看记录会保留。",
+            title = "更新包已就绪 v${current.release.version}",
+            message = "安装包已下载并通过校验，接下来由 Android 系统安装器完成升级，现有观看记录会保留。",
             confirmLabel = "安装更新",
             dismissLabel = "稍后",
             onConfirm = { requestInstall(current.release, current.apk) },

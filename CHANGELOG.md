@@ -4,6 +4,27 @@
 [GitHub Releases](https://github.com/chinahhy/Hazix/releases) 上；本地副本归档在 `dist/`，
 校验值记录在 `dist/SHA256SUMS.txt`。
 
+## 3.6.4 — 2026-09-19
+
+- **修复「更新没有完成 / 无法验证更新包签名」**（电视端应用内升级实际上从未成功过）：
+  Android 9～13 的 `PackageManager.getPackageArchiveInfo` 只在带 `GET_SIGNATURES`
+  标志时才去收集安装包的签名证书（平台源码即
+  `if ((flags & GET_SIGNATURES) != 0) collectCertificates(...)`，Android 14 才改成两者皆可），
+  而我们只传了 `GET_SIGNING_CERTIFICATES`，于是**下载好的 APK 永远读不到签名**，
+  签名比对必然失败——这正是"包已经下好、却在安装这一步报错"的原因。
+  现在两个标志都传，并同时从 `signingInfo` 与旧的 `signatures` 两个字段取证书。
+- 平台若仍然拒绝提供签名证书，**不再因此阻止安装**：安装包的 SHA-256 已经与发布页
+  `SHA256SUMS.txt` 逐字节一致，而系统安装器本身也会拒绝签名不符的包，
+  所以这条判断只用于给出更好的提示，不应该成为升级的死结。
+- release 包现在**同时带 v1(JAR) 与 v2 签名**（同一把钥匙），兼容只通过 JAR 签名
+  读取证书的老机型；覆盖安装不受影响。
+- **下载好的更新包不再丢失**：它留在 `cacheDir/updates`，重启应用、点过「稍后」或安装被中断后，
+  下次检查会直接给出「安装更新」，不再重新下载一遍；GitHub 完全连不上时也能安装。
+- **检查更新不再依赖会被限流的 GitHub API**：`api.github.com` 对未登录请求按公网 IP
+  限流（60 次/小时），额度耗尽就是 403。API 失败时改为回退到
+  `github.com/chinahhy/Hazix/releases/latest` 的**重定向**（不占 API 配额）解析版本号，
+  再按发布资产命名规则拼出下载地址。该回退路径拿不到发布说明，界面会显示通用提示。
+
 ## 3.6.3 — 2026-09-19
 
 - 修复 3.5.0 引入的一个副作用：首页加载失败后，进出首页**不再自动重试**，

@@ -27,6 +27,13 @@ android {
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+            // Keep the v1 (JAR) signature on top of v2. The in-app updater asks
+            // PackageManager for the certificates of the downloaded APK, and the
+            // oldest supported devices read those through the JAR signature; a
+            // v2-only APK can leave that answer empty. Both schemes carry the same
+            // key, so installing over an older build is unaffected.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 

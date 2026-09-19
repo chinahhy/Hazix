@@ -228,3 +228,110 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 
 **测试脆弱点**：`NetworkClientsTest` 会**访问真实网络**（请求 hdao.tv）。
 若站点限制 GitHub Actions 出口 IP，CI 会无故变红——排查 CI 失败时先看这一条。
+
+## 2026-09-19 · 第五轮：电视端应用内升级失败的根因与修复（v3.6.4）
+
+用户报「安装包已经下载好了，但到安装这一步报错」。弹窗是
+**更新没有完成 / 无法验证更新包签名**（`Failed(release != null, …)`）。
+用户先前发过一张 403 的图，那张是发错的，不是本次现象。
+
+### 1. 根因（AOSP 源码证据，不是推测）
+
+`UpdateManager.verifyPackage()` 用
+`PackageManager.getPackageArchiveInfo(path, GET_SIGNING_CERTIFICATES)` 读下载好的 APK 的签名，
+再与已安装包比对。但 **Android 9～13 只有在 flags 里带 `GET_SIGNATURES` 时才会去收集证书**：
+
+- Android 9 (P) `core/java/android/content/pm/PackageManager.java`：
+  ```java
+  PackageParser.Package pkg = parser.parseMonolithicPackage(apkFile, 0);
+  if ((flags & GET_SIGNATURES) != 0) { PackageParser.collectCertificates(pkg, false); }
+  return PackageParser.generatePackageInfo(pkg, null, flags, 0, 0, null, state);
+  ```
+- Android 9 (P)、10 (Q)、13 (T) 的源码都只有 `if ((flags & GET_SIGNATURES) != 0)`；
+  **Android 14 (U) 才**改成 `if (GET_SIGNATURES || GET_SIGNING_CERTIFICATES)`。
+- 没收集证书时 `pkg.mSigningDetails == SigningDetails.UNKNOWN`，而 `generatePackageInfo` 里是
+  `if (mSigningDetails != UNKNOWN) pi.signingInfo = new SigningInfo(...); else pi.signingInfo = null;`
+  → `signingInfo` 为 null → `apkContentsSigners.orEmpty()` 为空 →
+  `require(archiveSigners.isNotEmpty() …) { "无法验证更新包签名" }` 直接失败。
+
+用户电视是 **TCL/雷鸟 Android 9**（见 `preview/tv-v3.3.0/design-audit.md:56`），正落在受影响区间。
+`dist/*.apk` 实测**只有 v2 签名**，因此这条路径在该机型上从来没有成功过。
+
+复现（本机可跑，走项目内工具链）：
+```bash
+JAVA_HOME=$PWD/.tooling/jdk/jdk-17.0.20.1+1/Contents/Home \
+  .tooling/android-sdk/build-tools/35.0.0/apksigner verify --print-certs -v dist/Hazix-TV-v3.6.3.apk
+# Verified using v1 scheme (JAR signing): false
+# Verified using v2 scheme (APK Signature Scheme v2): true
+```
+AOSP 源码取法（`?format=TEXT` 返回 base64，且**没有换行**，必须用 `openssl base64 -d -A`：
+`base64 -d` 解不出来）：
+```bash
+curl -sS "https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-9.0.0_r1/core/java/android/content/pm/PackageManager.java?format=TEXT" \
+  | openssl base64 -d -A | grep -n -A22 "public PackageInfo getPackageArchiveInfo"
+```
+
+### 2. 本轮改动文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `nativeapp/.../update/UpdateManager.kt` | 主修复：`SIGNING_FLAGS = GET_SIGNATURES or GET_SIGNING_CERTIFICATES`；签名从 `signingInfo` 与旧的 `signatures` 两处合并；平台不给签名时不再阻止安装；`cachedUpdate()` 复用缓存里已校验的包；API 失败回退到 `releases/latest` 重定向；`requireTrustedReleaseUrl` 改用 OkHttp `HttpUrl`（可在 JVM 单测里跑） |
+| `nativeapp/.../update/UpdateViewModel.kt` | 检查更新时先取缓存包；网络结果与缓存版本相同则直接 `Ready`；网络失败或"已是最新"时，只要缓存里有更新包就仍然提供安装 |
+| `nativeapp/.../ui/UpdateDialog.kt` | `Ready` 弹窗标题带上版本号：`更新包已就绪 vX.Y.Z` |
+| `nativeapp/build.gradle.kts`、`mobileapp/build.gradle.kts` | `hazixRelease` 打开 `enableV1Signing`（v1+v2 双签名，同一把钥匙，覆盖安装不受影响） |
+| `nativeapp/src/test/.../UpdateManagerTest.kt` | 新增两条纯函数单测：重定向 Location → tag、发布资产 URL 约定 |
+| `CHANGELOG.md` | v3.6.4 条目 |
+
+### 3. 重要：本机能编译 Kotlin 了（推翻第 1 节的旧结论）
+
+第 1 节说"本机无法编译改过的 Kotlin"——那是**路径问题，不是环境缺件**。把**项目和
+GRADLE_USER_HOME 都放到纯 ASCII 路径**下就能正常编译、跑单测和 lint：
+
+```bash
+SRC="/Volumes/Data/ChatGPT项目文件/观影平台"
+rsync -a --exclude '.tooling' --exclude '.git' --exclude '.gradle' --exclude '.kotlin' \
+      --exclude 'build' --exclude 'node_modules' "$SRC/" /tmp/hazix/
+cp -a "$SRC/.tooling/gradle-home" /tmp/gradle-home          # 1.8G，必须真拷贝：符号链接会被解析回中文真路径
+mkdir -p /tmp/android-sdk && cp -a "$SRC/.tooling/android-sdk/build-tools/34.0.0" \
+      "$SRC/.tooling/android-sdk/build-tools/35.0.0" /tmp/android-sdk/build-tools/ \
+  && cp -a "$SRC/.tooling/android-sdk/platforms/android-35" /tmp/android-sdk/platforms/
+ln -sfn "$SRC/.tooling/jdk/jdk-17.0.20.1+1/Contents/Home" /tmp/jdk
+printf 'sdk.dir=/tmp/android-sdk\n' > /tmp/hazix/local.properties
+cd /tmp/hazix
+JAVA_HOME=/tmp/jdk PATH=/tmp/jdk/bin:$PATH ANDROID_HOME=/tmp/android-sdk GRADLE_USER_HOME=/tmp/gradle-home \
+  ./gradlew :nativeapp:testDebugUnitTest :nativeapp:lintDebug --no-daemon
+```
+关键点：`build-tools/34.0.0` 也要拷（AGP 8.6.1 默认用它）；不要加 `--offline`
+（lint 的 `debugAndroidTestCompileClasspath` 有些依赖不在缓存里）。
+`enableV1Signing` 的效果要用 `--min-sdk-version 23` 才看得出来：minSdk 24 的包
+apksigner 默认**不校验** v1，会直接打印 `v1 scheme: false`，那不代表签名无效。
+
+**发布钥匙在本机不存在，正式包只能由 CI 产出。** `.tooling/android-user/debug.keystore`
+可以给本地 release 构建用（`HAZIX_RELEASE_KEYSTORE=<该路径>`），但它**不是**发布钥匙：
+它导出的证书 SHA-256 是 `6161046b1e77824a08b5cf8b3ed28d71ce13f7a16c851dd62f4553983414e4db`，
+而发布链要求 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`
+（旧记录里的 `~/.android/debug.keystore` 现在已不存在）。真钥匙只在 GitHub Actions secret
+`ANDROID_DEBUG_KEYSTORE_BASE64` 里，所以**绝不能把本地构建的 v3.6.4 发给用户**——
+签名不同，覆盖安装会被系统拒绝。
+
+### 4. 验证结果
+
+- `:nativeapp:testDebugUnitTest`：**通过**，`UpdateManagerTest` 5 项（含两条新增）0 失败，全部测试 0 失败。
+- `:nativeapp:lintDebug`：**通过**（`abortOnError = true` 生效）。
+- `:nativeapp:assembleRelease :mobileapp:assembleRelease -PVERSION_NAME=3.6.4 -PVERSION_CODE=3006004`
+  （本地钥匙，仅验证打包与签名配置）：**通过**；产出的 APK 用
+  `apksigner verify -v --min-sdk-version 23` 检查为 **v1 true + v2 true**，
+  对照 `dist/Hazix-TV-v3.6.3.apk` 在同一命令下是 `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`
+  （即旧包确实没有 v1 签名）。本地包签名者是 `6161046b…`，**不是**发布链，仅供验证。
+- **未验证（必须真机确认）**：电视上点「安装更新」后系统安装器是否真的完成升级。
+  本机没有可用的安卓设备（`adb devices` 为空），模拟器仍受沙箱限制。
+
+### 5. 给下一个接手的代理
+
+- 不要再相信"本机不能编译 Kotlin"这条旧结论，第 3 节的做法可直接复用；
+  唯一代价是每次改动后要重新 `rsync` 到 `/tmp/hazix`。
+- `api.github.com` 对未登录请求按公网 IP 限流 60 次/小时，**不要用它轮询**；
+  需要判断最新版本时用 `curl -sI https://github.com/chinahhy/Hazix/releases/latest` 看 `Location`。
+- 应用内升级的签名校验**不是**安全边界：真正把关的是发布页 SHA-256 与系统安装器本身；
+  所以"平台读不到签名"时应当继续安装，而不是报错挡住用户。
+

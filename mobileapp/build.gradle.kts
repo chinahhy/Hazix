@@ -35,6 +35,10 @@ android {
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+            // Same scheme as :nativeapp — see the comment there. Both APKs must
+            // keep the identical signing chain the TV updater checks.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
