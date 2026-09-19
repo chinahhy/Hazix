@@ -350,3 +350,75 @@ apksigner 默认**不校验** v1，会直接打印 `v1 scheme: false`，那不�
 - 应用内升级的签名校验**不是**安全边界：真正把关的是发布页 SHA-256 与系统安装器本身；
   所以"平台读不到签名"时应当继续安装，而不是报错挡住用户。
 
+
+## 2026-09-19 · DSH 第二轮：首页按 Netflix 视觉语言重做（浏览器预览先做）
+
+用户反馈原话：「类 Netflix 首页，codex 没做到……内容行不用太多了，现在就够了，
+就是首页样式不像，很不像，海报就不像，还有很多都不像」。
+按 `AGENTS.md`，先在 `web/` 浏览器预览里做，用户满意后才动电视端 Kotlin。
+
+### 1. 诊断：差的不是数据行，是视觉语言
+
+`/api/vods/featured` 服务端本来就返回 `hero` + 6 类行（movies / tv / variety / anime /
+documentary / shortDrama，各 50 条），但网页首页只用了 `recentHot()` 拼出的 6 条
+「最近热播」，其余数据全部没用上；电视端 Kotlin 同样只渲染 1 排。真正「不像」的是：
+
+| 位置 | 旧实现 | Netflix 实际做法 |
+| --- | --- | --- |
+| 强调色 | 金色 `#f4c15d`（标题、评分角标、焦点框、进度条，共 20 处） | 纯黑 `#141414`/`#000` + 白 + 灰 `#b3b3b3`，几乎不用彩色，唯一彩色是评分绿 `#46d369` |
+| 卡片 | 2:3 竖版 + 1px 描边 + 圆角 4px + 金色评分角标 + 底部渐变 | 行内用 16:9 横版圆角 4px，无描边无角标，聚焦时 `scale(1.16)` + 白描边 + 浮层（标题/评分/播放/详情） |
+| 巨幕 | 顶部 6 张横版轮播 + 左箭头 | 全幅背景 + 左侧文案 + 底部渐隐，且内容区更高（标题落在屏幕下三分之一） |
+| 导航 | 22px 粗体字 + 金色下划线 | 15px/500 白灰字，无下划线，滚动后变实底 |
+| 字体比例 | h1 66 / h2 27 / 边距 72 | h1 38–58 / h2 17–22 / 边距 88 |
+
+另一个「海报不像」的客观原因是数据：`tmdbBackdrop` 缺失时只能退化成站点竖版封面，
+裁成 16:9 后构图就散了。实测覆盖率（`/api/vods/featured` 快照）：
+
+```text
+hero 6/6 有 backdrop；movies 43/50；tv 46/50；variety 38/50；anime 36/50；documentary 44/50；shortDrama 0/50
+```
+
+### 2. 本轮改动文件（只动预览，未动 Kotlin/APK）
+
+| 文件 | 改动 |
+| --- | --- |
+| `web/public/app.css` | 整体重写：`:root` 换单色令牌（去掉 `--accent` 金色）、导航改固定顶栏、巨幕改全幅 + 两段式渐隐、卡片/行/焦点/悬浮层全部按 Netflix 重做，手机断点同步调整 |
+| `web/public/app.js` | `card()` 改为无角标卡片并加 hover/focus 浮层（播放/详情/标题/评分）；首页改用服务端 `catalog.hero`（不再用 `recentHot`）、巨幕交叉淡入（`scene()`）、导航滚动变实底、无观看记录时不再渲染空行 |
+| `web/public/preview.css` | 预览外壳的选中态/焦点色去掉金色 |
+| `preview/netflix-home-v1/*.png` | 前后对比：`01-before-tv-1920`（旧）、`02-after-tv-1920`（新）、`03-after-phone-414`（新，手机） |
+
+### 3. 本机预览与截图工具（可复用）
+
+```bash
+cd web && node server.mjs                       # 预览：http://127.0.0.1:4173
+cd web && pnpm run check && pnpm test           # 8/8 通过
+```
+
+无头 Chrome 截图有两个坑，都踩过了：
+
+1. 必须 `--no-sandbox`，否则 `sandbox initialization failed: Operation not permitted`；
+2. **无头 Chrome 的窗口最小宽度是 500px**：`--window-size=414,896` 实际视口是 500 宽，
+   截出来的 414px 图右侧会被裁掉，看起来像「文案溢出屏幕」。要精确模拟手机视口必须用
+   DevTools 协议 `Emulation.setDeviceMetricsOverride`（`/tmp/shot-cdp.mjs` 的做法）。
+   用窗口截图量布局得出的结论不可信，务必先用 `innerWidth` 核对。
+
+### 4. 已验证 / 未验证
+
+- 已验证：`pnpm run check`（语法）与 `pnpm test`（8 项）通过；1920×1080 与 414×896 两种
+  视口都抓图确认过：导航、巨幕、文案、按钮、横向行、手机底部导航均为新样式，
+  `document.scrollWidth === innerWidth`，无横向溢出。
+- 未验证：真实遥控器焦点移动、hover 浮层在触屏上的表现、以及电视端原生效果——
+  本轮**没有改任何 Kotlin**，电视端首页还是旧的 Compose 布局（金色、竖版卡片、单排）。
+- 未做（等用户确认预览后再做）：把这套视觉语言移植到
+  `nativeapp/.../ui/Screens.kt`、`Components.kt`、`Theme.kt`（`Gold` → 白色强调）、
+  `HomePreviewPlayer`；Kotlin 改动按本文件第 3 节用 `/tmp/hazix` 编译 + `lintDebug` 验证。
+
+### 5. 给下一个接手的代理
+
+- 首页视觉基准看 `preview/netflix-home-v1/02-after-tv-1920.png`，旧版看 `01-before`。
+- 预览首页的三条硬规则：不要引入金色/彩色强调（只允许 `#46d369` 评分绿）、行内卡片用
+  16:9、导航用 15px 白灰字。改动前先读 `web/public/app.css` 的 `:root` 令牌。
+- 电视端 Kotlin 与预览是两套实现，改了一边要同步另一边，否则用户看到的和预览不一致。
+
+> 注意：`preview/` 目录在 `.gitignore` 里（第 15 行），所以上面那三张对比图只存在于本机，
+> 换机器或 clone 下来是看不到的；要留证据请把图挪到 `preview/` 之外的路径，或改成文字描述。

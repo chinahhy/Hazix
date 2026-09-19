@@ -1,4 +1,4 @@
-import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, recentHot, categoryItems, recentProgress, playbackURL } from './data.js';
+import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, categoryItems, recentProgress, playbackURL } from './data.js';
 
 const content = document.querySelector('#content');
 const icons = {
@@ -64,15 +64,17 @@ function meta(item) {
 function card(item, options = {}) {
   const { featured: isFeatured, entry, landscape = false } = options;
   const url = entry ? `#play/${entry.vodId}/${entry.episodeIndex}` : `#detail/${idOf(item)}`;
-  const art = landscape ? (backdrop(item) || poster(item)) : poster(item);
+  const art = landscape ? (backdrop(item) || poster(item)) : (poster(item) || backdrop(item));
   const rating = ratingOf(item);
-  const compactMeta = [item.year, item.genres || item.area].filter(Boolean).slice(0, 2).map(esc).join(' · ');
+  const meta = [item.year, item.genres || item.area].filter(Boolean).slice(0, 3).map(esc).join(' · ');
+  const tail = entry
+    ? `<span class="card-sub">${esc(entry.episodeName)} · 已看 ${Math.floor(entry.position / 60)} 分钟</span>`
+    : (landscape ? '' : `<span class="card-title">${esc(item.title)}</span>`);
   return `<a class="poster-card ${landscape ? 'landscape-card' : ''} ${isFeatured ? 'featured-card' : ''} ${entry ? 'continue-card' : ''}" href="${url}" data-id="${idOf(item)}" aria-label="${esc(item.title)}${rating ? `，评分 ${rating.score}` : ''}${entry ? `，最近观看 ${esc(entry.episodeName)}` : '，查看详情'}">
     <div class="poster-art">${art ? `<img src="${esc(art)}" alt="" loading="${isFeatured ? 'eager' : 'lazy'}">` : '<span class="no-poster">暂无图片</span>'}
-    ${rating ? `<span class="score">${rating.score}</span>` : ''}${!landscape && item.remarks ? `<span class="remarks">${esc(item.remarks)}</span>` : ''}
-    ${landscape ? `<span class="card-shade"><strong>${esc(item.title)}</strong><small>${compactMeta || '高清片源'}</small></span>` : ''}
+    ${landscape ? `<div class="card-hover"><div class="card-hover-actions"><span class="round-button">${icon('play')}</span><span class="round-button ghost">${icon('info')}</span></div><div class="card-hover-copy"><strong>${esc(item.title)}</strong>${rating || meta ? `<span class="card-hover-meta">${rating ? `<em>${rating.score}</em>` : ''}${meta}</span>` : ''}</div></div>` : ''}
     ${entry ? `<div class="watch-bar"><i style="width:${entry.duration > 0 ? Math.min(100, entry.position / entry.duration * 100) : 0}%"></i></div>` : ''}</div>
-    ${landscape ? '' : `<span class="card-title">${esc(item.title)}</span>`}${entry ? `<span class="card-sub">${esc(entry.episodeName)} · 已看 ${Math.floor(entry.position / 60)} 分钟</span>` : ''}</a>`;
+    ${tail}</a>`;
 }
 function rail(title, items, category) {
   return `<section class="catalog-row home-catalog-row"><div class="row-heading"><h2>${title}</h2>${category ? `<a href="#category/${category}">查看全部 ${icon('next')}</a>` : ''}</div><div class="poster-rail landscape-rail">${items.map(item => card(item, { landscape: true })).join('')}</div></section>`;
@@ -83,20 +85,31 @@ function bindImageErrors() {
 async function home(stamp) {
   const catalog = await featured();
   if (stamp !== epoch) return;
-  const heroes = recentHot(catalog);
+  const heroes = (catalog.hero || []).filter(item => idOf(item));
   if (!heroes.length) { content.innerHTML = '<div class="empty"><h1>片库暂时没有推荐</h1><p>稍后再来看看。</p></div>'; return; }
   const entries = recentProgress(progress);
-  content.innerHTML = `<section class="hero"><div class="hero-art" aria-hidden="true"></div><div class="hero-copy"></div>
-    <div class="featured-shelf"><div class="row-heading"><h2>最近热播</h2><div class="carousel-controls"><span id="hero-count"></span><button data-carousel="prev" aria-label="上一部推荐">${icon('prev')}</button><button data-carousel="next" aria-label="下一部推荐">${icon('next')}</button></div></div>
-    <div class="poster-rail featured-rail landscape-rail">${heroes.map(item => card(item, { featured: true, landscape: true })).join('')}</div></div></section>
-    <section class="catalog-row continue-row"><div class="row-heading"><h2>最近观看</h2></div>${entries.length ? `<div class="poster-rail landscape-rail">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div>` : '<p class="empty-progress">还没有观看记录。</p>'}</section>
+  const recentRow = entries.length
+    ? `<section class="catalog-row continue-row"><div class="row-heading"><h2>最近观看</h2></div><div class="poster-rail landscape-rail">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div></section>`
+    : '';
+  content.innerHTML = `<section class="hero"><div class="hero-art" aria-hidden="true"></div><div class="hero-copy"></div></section>
+    ${recentRow}
+    <section class="catalog-row home-catalog-row featured-shelf"><div class="row-heading"><h2>最近热播</h2><div class="carousel-controls"><span id="hero-count"></span><button data-carousel="prev" aria-label="上一部推荐">${icon('prev')}</button><button data-carousel="next" aria-label="下一部推荐">${icon('next')}</button></div></div>
+    <div class="poster-rail landscape-rail featured-rail">${heroes.map(item => card(item, { featured: true, landscape: true })).join('')}</div></section>
     `;
   let selected = 0;
   const hero = content.querySelector('.hero');
+  const art = content.querySelector('.hero-art');
+  function scene(item) {
+    const bg = backdrop(item), still = poster(item);
+    if (bg) return `<div class="scene"><img src="${esc(bg)}" alt=""></div>`;
+    if (still) return `<div class="scene"><img class="hero-poster" src="${esc(still)}" alt=""></div>`;
+    return '<div class="scene"></div>';
+  }
   function show(index) {
     selected = (index + heroes.length) % heroes.length;
-    const item = heroes[selected], bg = backdrop(item);
-    content.querySelector('.hero-art').innerHTML = bg ? `<img src="${esc(bg)}" alt="">` : (poster(item) ? `<img class="hero-poster" src="${esc(poster(item))}" alt="">` : '');
+    const item = heroes[selected];
+    art.insertAdjacentHTML('beforeend', scene(item));
+    while (art.children.length > 2) art.firstElementChild.remove();
     content.querySelector('.hero-copy').innerHTML = `<h1>${esc(item.title)}</h1>${meta(item)}<p class="hero-description">${esc(summary(item))}</p><div class="actions hero-actions"><a class="button primary" href="#play/${idOf(item)}/0">${icon('play')}播放</a><a class="button secondary" href="#detail/${idOf(item)}">${icon('info')}<span class="desktop-info-label">更多信息</span><span class="mobile-info-label">详情</span></a></div>`;
     content.querySelector('#hero-count').textContent = `${String(selected + 1).padStart(2, '0')} / ${String(heroes.length).padStart(2, '0')}`;
     content.querySelectorAll('.featured-card').forEach((link, i) => link.classList.toggle('selected', i === selected));
@@ -108,6 +121,9 @@ async function home(stamp) {
     link.addEventListener('focus', () => show(index));
   });
   content.querySelectorAll('[data-carousel]').forEach(button => button.addEventListener('click', () => show(selected + (button.dataset.carousel === 'next' ? 1 : -1))));
+  const syncNav = () => document.querySelector('#nav')?.classList.toggle('scrolled', window.scrollY > 24);
+  syncNav();
+  window.addEventListener('scroll', syncNav, { passive: true });
   let touchStart;
   hero.addEventListener('touchstart', event => { if (!event.target.closest('.poster-rail')) touchStart = [event.touches[0].clientX, event.touches[0].clientY]; }, { passive: true });
   hero.addEventListener('touchend', event => {
@@ -119,6 +135,7 @@ async function home(stamp) {
   heroTimer = setInterval(() => {
     if (!document.hidden && !hero.matches(':hover') && !hero.contains(document.activeElement) && !matchMedia('(prefers-reduced-motion: reduce)').matches) show(selected + 1);
   }, 8000);
+  cleanup = () => window.removeEventListener('scroll', syncNav);
 }
 function myPage() {
   const entries = recentProgress(progress);
