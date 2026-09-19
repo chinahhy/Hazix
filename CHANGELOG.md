@@ -1,113 +1,96 @@
-# Changelog
+# 更新日志
 
-Versioned APKs are never overwritten or deleted. Cloud-built packages are
-attached to [GitHub Releases](https://github.com/chinahhy/Hazix/releases); local
-copies are archived in `dist/` with their SHA-256 values in
-`dist/SHA256SUMS.txt`.
+带版本号的 APK 永不被覆盖或删除。云端构建的安装包附在
+[GitHub Releases](https://github.com/chinahhy/Hazix/releases) 上；本地副本归档在 `dist/`，
+校验值记录在 `dist/SHA256SUMS.txt`。
 
 ## 3.4.0 — 2026-09-19
 
-- TV: fixed the progress bar and control overlay never hiding on sources that
-  need longer to start playing, such as anime episodes.
-- TV: returning from a detail page now restores the category grid, its scroll
-  position, and the cursor on the poster that was opened, instead of reloading
-  page one and dropping the cursor on the top navigation bar.
-- TV: added a manual "Check for updates" entry to the top navigation. The
-  automatic check on launch only reacts when a newer release exists, so the
-  feature previously had no visible entry point.
-- Both apps now share one version number and one signing key, and the release
-  workflow builds the TV and phone APKs together. The phone app therefore jumps
-  from its own 1.1.0 line to 3.4.0; installing it over 1.1.0 works because the
-  version code increases and the signing key is unchanged.
+- 电视端：修复播放源起播较慢时（例如动漫剧集）进度条与控制层永不隐藏的问题。
+  计时改为从真正开始播放算起，暂停或缓冲时不再隐藏。
+- 电视端：从详情页返回分类页时，恢复网格与原滚动位置，并把光标放回刚才打开的那张海报；
+  不再重新加载第一页，也不再让光标落到顶部分类名上。
+- 电视端：顶部导航新增手动「检查更新」入口。此前只在启动时自动检查一次，且仅在有新版本时
+  才有反应，等于没有任何可见入口；现在手动检查一定会反馈"已是最新版本"或具体失败原因。
+- 电视端与手机端统一版本号与签名密钥，发布工作流一次构建两个 APK。手机版因此从自己的
+  1.1.0 线并入 3.4.0；由于 versionCode 提高且签名密钥未变，可以直接覆盖安装 1.1.0。
 
 ## 3.3.9
 
-`dist/Hazix-TV-v3.3.9.apk` — in-app updates from GitHub Releases, verifying the
-download origin, APK size, SHA-256, package ID, version code, and signing
-certificate before handing the package to the system installer.
-Installing this version over 3.3.8 still required a U-disk or ADB install.
+`dist/Hazix-TV-v3.3.9.apk` —— 增加基于 GitHub Release 的应用内更新：下载后依次校验下载来源、
+APK 大小、SHA-256、应用 ID、版本号与签名证书，全部通过才交给 Android 系统安装器。
+从 3.3.8 升级到本版本仍需最后一次通过 U 盘或 ADB 安装。
 
 ## 3.3.8
 
-`dist/Hazix-TV-v3.3.8.apk` — fixed paging state not being rebuilt after switching
-categories, which limited series, variety, documentary, anime, and short drama to
-their first page.
+`dist/Hazix-TV-v3.3.8.apk` —— 修复切换分类后分页状态未重建的问题，此前剧集、综艺、纪录片、
+动漫与短剧只能加载第一页。
 
 ## 3.3.7
 
-`dist/Hazix-TV-v3.3.7.apk` — home screen reduced to the featured carousel and
-continue watching; category pages load seamlessly.
+`dist/Hazix-TV-v3.3.7.apk` —— 首页仅保留最近热播与最近观看；分类页改为无缝加载。
 
 ## 3.3.6
 
-`dist/Hazix-TV-v3.3.6.apk` — project renamed to Hazix; content screens show the
-brand icon only, without the product name.
+`dist/Hazix-TV-v3.3.6.apk` —— 软件更名为 Hazix；电视与手机版内容页仅显示品牌图标，
+不显示软件名称。
 
 ## 3.3.5
 
-`dist/HDAO-TV-Netflix-v3.3.5.apk` — unified the seven top-bar text entries at a
-larger size, keeping search as a separate icon entry.
+`dist/HDAO-TV-Netflix-v3.3.5.apk` —— 顶部七项文字导航统一为大字号，搜索保留为独立图标入口。
 
 ## 3.3.4
 
-`dist/HDAO-TV-Netflix-v3.3.4.apk` — larger TV top-menu text; removed the
-duplicate navigation on category pages.
+`dist/HDAO-TV-Netflix-v3.3.4.apk` —— 增大电视端顶部菜单字号；移除分类页上重复的导航。
 
 ## 3.3.3
 
-`dist/HDAO-TV-Netflix-v3.3.3.apk` — immersive poster home screen; focus updates
-the detail panel immediately, and resting on a poster starts a muted preview.
+`dist/HDAO-TV-Netflix-v3.3.3.apk` —— 沉浸式海报首页；焦点即时联动详情面板，停留在海报上
+一段时间后开始静音自动预览。
 
 ## 3.3.2
 
-`dist/HDAO-TV-Netflix-v3.3.2.apk` — poster-based home screen, continue-watching
-focus handling, short-drama category, removed brand watermark, higher-resolution
-detail artwork.
+`dist/HDAO-TV-Netflix-v3.3.2.apk` —— 海报式首页、继续观看的焦点处理、短剧分类、
+去掉品牌水印、更高分辨率的详情图。
 
 ## 3.3.1
 
-`dist/HDAO-TV-Netflix-v3.3.1.apk` — home screen keeps only featured
-recommendations and continue watching; fixed carousel misalignment, ignored input,
-and HLS playback errors.
+`dist/HDAO-TV-Netflix-v3.3.1.apk` —— 首页只保留焦点推荐与继续观看；修复轮播错位、
+按键无响应与 HLS 播放错误。
 
 ## 3.3.0
 
-`dist/HDAO-TV-Netflix-v3.3.0.apk` — dedicated category rail, 3 + 3 featured
-carousel, de-duplicated continue watching, higher-resolution artwork.
+`dist/HDAO-TV-Netflix-v3.3.0.apk` —— 左侧独立分类栏、最近热映 3 + 3 轮播、
+继续观看去重、更高分辨率的图片源。
 
 ## 3.2.0
 
-`dist/HDAO-TV-Netflix-v3.2.0.apk` — new brand icon and TV launch banner.
+`dist/HDAO-TV-Netflix-v3.2.0.apk` —— 新品牌图标与电视端启动横幅。
 
 ## 3.1.0
 
-`dist/HDAO-TV-Netflix-v3.1.0.apk` — home screen rework, focused hero, rating
-badges, de-duplicated continue watching.
+`dist/HDAO-TV-Netflix-v3.1.0.apk` —— 首页重排、聚焦 Hero、评分标签、继续观看去重。
 
 ## 3.0.1
 
-`dist/HDAO-TV-Netflix-v3.0.1.apk` — encrypted DNS fallback; fixed connection
-timeouts when the TV resolved the site to a fake IP.
+`dist/HDAO-TV-Netflix-v3.0.1.apk` —— 加密 DNS 容灾；修复电视解析到 Fake-IP 后连接超时。
 
 ## 3.0.0
 
-`dist/HDAO-TV-Netflix-v3.0.0.apk` — first Netflix-style TV UI: side rail,
-horizontal cards, continue watching.
+`dist/HDAO-TV-Netflix-v3.0.0.apk` —— 第一版 Netflix 风电视界面：侧栏、横向卡片、继续观看。
 
 ## 2.0.0
 
-`dist/HDAO-TV-Native-v2.0.0.apk` — first native TV interface.
+`dist/HDAO-TV-Native-v2.0.0.apk` —— 第一版原生电视界面。
 
-## Mobile 1.1.0
+## 手机版 1.1.0
 
-`dist/HDAO-Mobile-v1.1.0.apk` — new icon, automatic and manual hero carousel,
-series sub-categories.
+`dist/HDAO-Mobile-v1.1.0.apk` —— 新图标、自动与手动 Hero 轮播、剧集子分类。
 
-## Mobile 1.0.0
+## 手机版 1.0.0
 
-`dist/HDAO-Mobile-v1.0.0.apk` — first native Android phone release.
+`dist/HDAO-Mobile-v1.0.0.apk` —— 第一版原生 Android 手机端。
 
 ## 1.0.0
 
-`dist/HDAO-TV-v1.0.0.apk` — WebView version, kept only as a compatibility
-fallback.
+`dist/HDAO-TV-v1.0.0.apk` —— WebView 版本，仅作兼容回退保留。
