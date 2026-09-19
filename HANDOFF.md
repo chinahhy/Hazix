@@ -90,3 +90,32 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 - 仓库目前在 GitHub 上是 **public**。用户以为只自己用；若想私有需在仓库设置里改。
 - `README.md` 现为英文主版本 + `README.zh-CN.md` 中文镜像，**两份要同步维护**。
 - `dist/SHA256SUMS.txt` 是本地台账（`dist/*.apk` 被 gitignore）；云端产物在 GitHub Releases。
+
+### 6. CI 最终结果（提交 `b821e8d`，三个 job 全绿）
+
+- `Web checks`：`pnpm run check` + `pnpm test` 通过。
+- `Android tests and lint`：TV 与手机的单测 + `lintDebug` 通过。
+- `Build TV and mobile APKs`：双端 release APK（R8 混淆 + 签名 + 签名指纹校验）构建成功。
+
+该 run 的 artifact `Hazix-APKs-<sha>` 内含 `Hazix-TV-<sha>.apk` 与 `Hazix-Mobile-<sha>.apk`，
+版本号取模块默认值（3.3.9 / versionCode 17），可以直接覆盖安装现有版本。
+推 `vX.Y.Z` 标签时由 `release-apks.yml` 发布为 GitHub Release 的两个正式 APK 加 `SHA256SUMS.txt`。
+
+**踩到的坑，务必记住**：`lintDebug` 曾因 `UpdateDialog.kt` 中
+`LocalContext.current as ComponentActivity` 报 `ContextCastToActivity` 错误而失败。
+**写成一行的 cast 会被 lint 抓到，写成 `val context = LocalContext.current` 再另起一行 cast 则不会**
+——旧代码正是这样侥幸通过的。已改为 `LocalActivity.current as? ComponentActivity`。
+结论：**Kotlin 改动必须用 `lintDebug`/CI 验证，`assembleRelease` 通过不代表 lint 通过。**
+
+**CI 失败原因如何在不登录的情况下读到**：job log 需要仓库管理员权限，但 check annotations 是公开的。
+`ci.yml` 新增的 `Surface Gradle failures` 步骤把 Gradle 失败行以 `::error::` 注解重复一遍，
+于是可用 `https://api.github.com/repos/chinahhy/Hazix/check-runs/<id>/annotations` 读到具体报错。
+另外 `Test and lint` 已拆成独立的 `Unit tests` 与 `Lint` 两步，便于定位。
+
+### 7. 给 Codex 的提醒
+
+- 提交历史只增不改，本轮所有修改都在 `main`，无需 merge。
+- **绝不要重新生成 `~/.android/debug.keystore`**，否则电视端自更新与手机端覆盖安装都会失败。
+- 想在本机编译 Kotlin，必须先解决两件事：中文项目路径导致 Compose 编译器插件路径被转义破坏，
+  以及 Kotlin daemon 无法写入项目外目录。在解决之前一律用云端 CI 验证。
+- `README.md` 与 `README.zh-CN.md` 需同步维护。
