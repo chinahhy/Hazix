@@ -178,10 +178,19 @@ jobs:
             exit 1
           fi
 
+          # Prefer the curated CHANGELOG.md section for this version over the
+          # sparse notes GitHub generates from the commit range.
+          awk -v v="## ${VERSION}" 'index($0, v) == 1 { capture = 1; next } capture && /^## / { exit } capture { print }' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            printf 'See CHANGELOG.md for the changes in this release.\n' > release-notes.md
+          fi
+          printf '\nFull history: https://github.com/%s/blob/%s/CHANGELOG.md\n' \
+            "${GITHUB_REPOSITORY}" "${TAG}" >> release-notes.md
+
           gh release create "${TAG}" \
             release/Hazix-TV-v${VERSION}.apk \
             release/Hazix-Mobile-v${VERSION}.apk \
             release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "Hazix ${TAG}" \
-            --generate-notes
+            --notes-file release-notes.md

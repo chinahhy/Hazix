@@ -122,3 +122,17 @@ JDK 17 + Android SDK 35 + platform-tools + Google TV 模拟器都在项目内，
 - 想在本机编译 Kotlin，必须先解决两件事：中文项目路径导致 Compose 编译器插件路径被转义破坏，
   以及 Kotlin daemon 无法写入项目外目录。在解决之前一律用云端 CI 验证。
 - `README.md` 与 `README.zh-CN.md` 需同步维护。
+
+### 8. 当前发布状态（交接时的实际状态）
+
+- **v3.4.0 已发布**：<https://github.com/chinahhy/Hazix/releases/tag/v3.4.0>，
+  资产为 `Hazix-TV-v3.4.0.apk`（2,792,558 字节）、`Hazix-Mobile-v3.4.0.apk`（2,740,164 字节）、
+  `SHA256SUMS.txt`。
+- 已核对：TV 包为 `tv.hdao.app` 3.4.0（versionCode 3004000），手机包为 `tv.hdao.mobile` 3.4.0（3004000），
+  两者签名证书 SHA-256 = `6f4c4390...f9f1`，与已安装版本一致，可直接覆盖升级。
+- 两个 APK 已归档到 `dist/`，校验值追加进 `dist/SHA256SUMS.txt`（该文件受版本控制，APK 本身被 gitignore）。
+- `v3.4.0` 的发布说明只有一行自动生成的对比链接（当时工作流用的是 `--generate-notes`）。
+  已改为从 `CHANGELOG.md` 提取对应版本小节生成发布说明，**下一个版本起生效**；
+  v3.4.0 那段说明如需补全，只能在 GitHub 网页上手动编辑。
+- **三项 UI 行为仍未真机确认**：控制条自动隐藏、返回后焦点回到原卡片、检查更新入口。
+  代码已在 CI 中通过编译、lint 与单测，但这三项属于"看出来的"行为，请在电视上实测。
