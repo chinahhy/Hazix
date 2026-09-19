@@ -5,7 +5,7 @@ attached to [GitHub Releases](https://github.com/chinahhy/Hazix/releases); local
 copies are archived in `dist/` with their SHA-256 values in
 `dist/SHA256SUMS.txt`.
 
-## Unreleased
+## 3.4.0 — 2026-09-19
 
 - TV: fixed the progress bar and control overlay never hiding on sources that
   need longer to start playing, such as anime episodes.
@@ -16,7 +16,9 @@ copies are archived in `dist/` with their SHA-256 values in
   automatic check on launch only reacts when a newer release exists, so the
   feature previously had no visible entry point.
 - Both apps now share one version number and one signing key, and the release
-  workflow builds the TV and phone APKs together.
+  workflow builds the TV and phone APKs together. The phone app therefore jumps
+  from its own 1.1.0 line to 3.4.0; installing it over 1.1.0 works because the
+  version code increases and the signing key is unchanged.
 
 ## 3.3.9
 
