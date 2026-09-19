@@ -422,3 +422,35 @@ cd web && pnpm run check && pnpm test           # 8/8 通过
 
 > 注意：`preview/` 目录在 `.gitignore` 里（第 15 行），所以上面那三张对比图只存在于本机，
 > 换机器或 clone 下来是看不到的；要留证据请把图挪到 `preview/` 之外的路径，或改成文字描述。
+
+### 6. 用户复查后的第二次修正（同一轮）
+
+用户反馈两件事，都查清并处理了：
+
+1. **「首页怎么只有轮播海报，没有最近播放」** —— 不是丢失，是两个原因叠加：
+   - 「最近观看」行只在真有观看记录时渲染（Netflix 的做法），而用户在预览里还没播过片。
+     用脚本写入 3 条 `hdao.web.progress.v1` 后，DOM 里确实出现 `最近观看` 行与 3 张卡
+     （`rows: ["最近观看","最近热播"], continueCards: 3`），功能是好的。
+     注意：造出来的记录里如果 `item` 没有 `tmdbPoster`，预览的 `/image` 代理只放行 TMDB
+     路径，卡片就是灰底「暂无图片」——真实观看记录里有 `tmdbPoster`，不会这样。
+   - 首屏被巨幕吃满。已把巨幕压到 `min(500px, 68vh)`（≥1500px 断点 `min(540px, 72vh)`）、
+     巨幕下边距 40px、`最近观看` 行上边距 16px。1920×1080 实测：巨幕 500 / 最近观看 540 /
+     最近热播 847，视口高 937 —— 首屏能看到最近观看完整一排加最近热播的标题与卡片上半截。
+2. **「检查更新没了」** —— 网页预览版从来就没有这个入口（它是电视端顶栏的功能），
+   现在补上了：
+   - `web/public/app.html` 里放 `<!-- version -->` 占位，`server.mjs` 服务时注入
+     `window.__HDAO_VERSION__`（默认 `3.6.4`，可用环境变量 `HDAO_VERSION` 覆盖）；
+   - 顶栏新增「检查更新」按钮（`data-update`），点击后查
+     `api.github.com/repos/chinahhy/Hazix/releases/latest`，按版本号比较后给出
+     「发现新版本 / 已是最新版本 / 网络不可用 + 打开发布页」三种结果；
+   - **踩到的坑**：这个按钮在 `#nav` 里，而点击委托原来只挂在 `#content` 上，
+     事件根本传不到 `#content`，所以按钮点了没反应。已把 `[data-update]` 的委托移到
+     `document` 的点击监听里（和 `[data-dialog-close]` 同一处）。改动点击委托时务必确认
+     目标元素在哪个容器里。
+   - 实测：点击后弹窗先显示「当前版本 v3.6.4，正在查询最新版本…」，约 10 秒后变为
+     「已是最新版本 / 当前版本 v3.6.4，无需更新。」（GitHub 最新 release 就是 v3.6.4）。
+
+本轮新增/改动：`web/public/app.js`（更新检查、弹窗、委托修正、`card()`/`home()`）、
+`web/public/app.css`（弹窗、检查更新按钮、巨幕与行距收紧）、`web/public/app.html`（版本占位）、
+`web/server.mjs`（`APP_VERSION` 注入）、`HANDOFF.md`。
+`pnpm run check` 与 `pnpm test`（8/8）在每次改动后都跑过。

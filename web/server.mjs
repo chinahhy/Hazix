@@ -8,6 +8,9 @@ const root = path.resolve(fileURLToPath(new URL('./public/', import.meta.url)));
 const hlsBundle = fileURLToPath(new URL('./node_modules/hls.js/dist/hls.min.js', import.meta.url));
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || '127.0.0.1';
+// Kept in step with the released TV build; the preview's check-update entry and
+// the packaged app must report the same version or the comparison misleads.
+const APP_VERSION = process.env.HDAO_VERSION || '3.6.4';
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const cache = new Map();
 const ratingCache = new Map();
@@ -131,7 +134,13 @@ const server = http.createServer(async (req, res) => {
     const requested = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
     const file = path.resolve(root, `.${requested}`);
     if (!file.startsWith(root + path.sep) || !types[path.extname(file)]) return json(res, 404, { error: '页面不存在' });
-    const body = await readFile(file);
+    let body = await readFile(file);
+    // The preview mirrors the packaged app's version, so the check-update entry
+    // has something real to compare against. Injected here instead of baked into
+    // the HTML so a running preview always reports the version in app.yaml.
+    if (path.basename(file) === 'app.html') {
+      body = Buffer.from(body.toString('utf8').replace('<!-- version -->', `<script>window.__HDAO_VERSION__=${JSON.stringify(APP_VERSION)}</script>`));
+    }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)], 'Cache-Control': 'no-cache' });
     res.end(req.method === 'HEAD' ? undefined : body);
   } catch (error) {

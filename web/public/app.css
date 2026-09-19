@@ -59,9 +59,12 @@ svg { flex: 0 0 auto; }
 .search-link, .profile-link { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 4px; color: #fff; transition: opacity .18s ease; }
 .search-link:hover, .profile-link:hover { opacity: .75; }
 .search-link svg, .profile-link svg { width: 21px; height: 21px; }
+.update-link { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border: 0; border-radius: var(--radius); background: transparent; color: #e5e5e5; font-size: 14px; transition: background .18s ease, color .18s ease; }
+.update-link:hover { background: rgba(255,255,255,.14); color: #fff; }
+.update-link svg { width: 19px; height: 19px; }
 .mobile-nav { display: none; }
 
-.hero { position: relative; display: flex; align-items: flex-end; min-height: min(660px, 82vh); padding: 132px var(--gutter) 50px; isolation: isolate; }
+.hero { position: relative; display: flex; align-items: flex-end; min-height: min(500px, 68vh); padding: 118px var(--gutter) 40px; isolation: isolate; }
 .hero-art { position: absolute; z-index: -1; inset: 0; overflow: hidden; background: #0b0b0b; }
 .scene { position: absolute; inset: 0; }
 .scene > img { width: 100%; height: 100%; object-fit: cover; object-position: 65% 22%; filter: brightness(.82); animation: scene-in 7s ease-out both; }
@@ -137,7 +140,7 @@ svg { flex: 0 0 auto; }
 .watch-bar i { display: block; height: 100%; background: #fff; }
 
 .catalog-row { padding-top: 20px; }
-.continue-row { padding-top: 26px; }
+.continue-row { padding-top: 16px; }
 .home-catalog-row { padding-top: 30px; }
 .empty-progress { padding: 18px var(--gutter) 22px; color: #8c8c8c; font-size: 14px; line-height: 1.7; }
 footer { padding: 60px var(--gutter) 48px; color: #595959; font-size: 12px; }
@@ -202,8 +205,17 @@ video { display: block; width: 100%; max-height: calc(100dvh - 185px); aspect-ra
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes reveal { from { opacity: 0; } to { opacity: 1; } }
 
+.dialog-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.72); animation: reveal .18s ease-out; }
+.dialog-card { position: relative; width: min(460px, 100%); padding: 26px 26px 22px; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; background: #181818; box-shadow: 0 24px 70px rgba(0,0,0,.7); }
+.dialog-card h3 { font-size: 20px; font-weight: 700; }
+.dialog-card p { margin-top: 12px; color: #c7c7c7; font-size: 14px; line-height: 1.75; }
+.dialog-card p strong { color: #fff; }
+.dialog-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border: 0; border-radius: 4px; background: transparent; color: #b3b3b3; font-size: 15px; }
+.dialog-close:hover { background: rgba(255,255,255,.12); color: #fff; }
+.dialog-actions { display: flex; gap: 10px; margin-top: 22px; }
+
 @media (min-width: 1500px) {
-  .hero { min-height: min(700px, 84vh); padding-top: 150px; }
+  .hero { min-height: min(540px, 72vh); padding-top: 132px; }
   .hero-copy { max-width: 680px; }
   .hero-description { max-width: 620px; }
   .poster-card.landscape-card { flex-basis: clamp(272px, 17vw, 340px); }
@@ -289,6 +301,13 @@ video { display: block; width: 100%; max-height: calc(100dvh - 185px); aspect-ra
   .results-count { font-size: 12px; }
   .infinite-status { min-height: 48px; font-size: 12px; }
 
+  .update-link { padding: 6px 8px; }
+  .update-link span { display: none; }
+  .dialog-card { padding: 22px 20px 18px; }
+  .dialog-card h3 { font-size: 18px; }
+  .dialog-card p { font-size: 13px; }
+  .dialog-actions { flex-direction: column; }
+  .dialog-actions .button { width: 100%; }
   .back-button { margin: 20px; font-size: 12px; }
   .detail-backdrop { height: 475px; }
   .detail-summary { grid-template-columns: 90px 1fr; gap: 16px; padding: 8px 20px 22px; }

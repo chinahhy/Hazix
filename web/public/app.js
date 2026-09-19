@@ -13,6 +13,21 @@ const icons = {
   tv: '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="m8 2 4 5 4-5"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
   hot: '<path d="M13.5 2.5c.4 3-1.6 4.5-3.3 6.2-1.5 1.5-2.4 3.1-1.3 5.1.4-1.8 1.7-2.8 3-3.6-.2 2.1 1.4 3.2 2.1 4.7.7 1.5.3 3.4-.8 4.6 3.7-.6 6.3-3.4 6.3-7.3 0-4.7-2.8-8.5-6-12.7Z"/><path d="M10.3 21c-2.3-.8-3.8-2.8-3.8-5.4 0-1.8.8-3.4 2-4.8"/>',
+  update: '<path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5"/><path d="M4 4v4.5h4.5"/><path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5"/><path d="M20 20v-4.5h-4.5"/>',
+};
+
+// The preview mirrors the TV app's version gate. In the packaged web bundle the
+// version comes from the build; when the file is opened directly it reads the
+// version the api injected into the page (see server.mjs).
+const APP_VERSION = String(window.__HDAO_VERSION__ || '3.6.4');
+const RELEASES_PAGE = 'https://github.com/chinahhy/Hazix/releases';
+const versionKey = value => String(value).replace(/^v/i, '').split('.').map(part => Number.parseInt(part, 10) || 0);
+const isNewer = (candidate, current) => {
+  const a = versionKey(candidate), b = versionKey(current);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
 };
 const icon = name => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.movie}</svg>`;
 let epoch = 0, cleanup = () => {}, heroTimer, featuredPromise;
@@ -47,7 +62,7 @@ async function detail(id) {
 function nav(selected, nested) {
   document.querySelector('#nav').innerHTML = `<a class="brand" href="#home" aria-label="首页"><img src="/brand.png" alt=""></a>
     <nav class="desktop-nav" aria-label="主导航">${[['home', '首页'], ...categories].map(([key, label]) => `<a href="#${key === 'home' ? 'home' : `category/${key}`}" ${key === selected ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-    <div class="nav-actions"><a class="search-link" href="#search" aria-label="搜索">${icon('search')}</a><a class="profile-link" href="#my" aria-label="我的">${icon('user')}</a></div>
+    <div class="nav-actions"><button class="update-link" type="button" data-update>${icon('update')}<span>检查更新</span></button><a class="search-link" href="#search" aria-label="搜索">${icon('search')}</a><a class="profile-link" href="#my" aria-label="我的">${icon('user')}</a></div>
     <nav class="mobile-nav" aria-label="手机导航">${[['home', '首页', 'home', '#home'], ['movie', '影视', 'movie', '#category/movie'], ['tv', '剧集', 'tv', '#category/tv']].map(([key, label, glyph, href]) => `<a href="${href}" ${key === selected ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span></a>`).join('')}</nav>`;
   document.body.classList.toggle('nested', nested);
 }
@@ -137,8 +152,30 @@ async function home(stamp) {
   }, 8000);
   cleanup = () => window.removeEventListener('scroll', syncNav);
 }
-function myPage() {
-  const entries = recentProgress(progress);
+function closeDialog() {
+  document.querySelector('#dialog')?.remove();
+}
+function dialog(html) {
+  closeDialog();
+  document.body.insertAdjacentHTML('beforeend', `<div class="dialog-backdrop" id="dialog" role="dialog" aria-modal="true"><div class="dialog-card"><button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${html}</div></div>`);
+  document.querySelector('#dialog .dialog-card button:not(.dialog-close)')?.focus();
+}
+async function checkUpdate() {
+  dialog(`<h3>检查更新</h3><p>当前版本 <strong>v${esc(APP_VERSION)}</strong>，正在查询最新版本…</p>`);
+  let latest = null;
+  try {
+    const response = await fetch(`https://api.github.com/repos/chinahhy/Hazix/releases/latest`, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/vnd.github+json' } });
+    if (response.ok) latest = (await response.json()).tag_name || null;
+  } catch { latest = null; }
+  const body = latest
+    ? (isNewer(latest, APP_VERSION)
+      ? `<h3>发现新版本 v${esc(latest.replace(/^v/i, ''))}</h3><p>当前版本 v${esc(APP_VERSION)}。可以前往发布页下载并覆盖安装。</p><div class="dialog-actions"><a class="button primary" href="${RELEASES_PAGE}" target="_blank" rel="noreferrer">打开发布页</a><button class="button secondary" type="button" data-dialog-close>稍后</button></div>`
+      : `<h3>已是最新版本</h3><p>当前版本 v${esc(APP_VERSION)}，无需更新。</p><div class="dialog-actions"><button class="button primary" type="button" data-dialog-close>知道了</button></div>`)
+    : `<h3>检查更新</h3><p>网络不可用，暂时查不到最新版本。当前版本 v${esc(APP_VERSION)}，可以稍后重试或直接打开发布页。</p><div class="dialog-actions"><a class="button primary" href="${RELEASES_PAGE}" target="_blank" rel="noreferrer">打开发布页</a><button class="button secondary" type="button" data-dialog-close>知道了</button></div>`;
+  const card = document.querySelector('#dialog .dialog-card');
+  if (card) card.innerHTML = `<button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${body}`;
+}
+function myPage() {  const entries = recentProgress(progress);
   content.innerHTML = `<section class="browse my-page"><h1>我的</h1><p class="page-intro">你的观看进度会安全保存在这台设备上。</p>${entries.length ? `<div class="poster-grid landscape-grid">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div>` : '<p class="empty-progress">还没有观看记录。播放一部片子，这里就会记住你看到哪里。</p>'}</section>`;
 }
 async function categoryPage(key, stamp) {
@@ -322,6 +359,8 @@ content.addEventListener('click', event => {
   if (event.target.closest('[data-retry]')) render();
 });
 document.addEventListener('click', event => {
+  if (event.target.closest('[data-dialog-close]')) { closeDialog(); return; }
+  if (event.target.closest('[data-update]')) { checkUpdate(); return; }
   const link = event.target.closest('a[href^="#"]');
   if (link?.hash === '#content') { event.preventDefault(); content.focus(); return; }
   if (link && link.hash !== location.hash) {
@@ -331,7 +370,11 @@ document.addEventListener('click', event => {
   }
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') { event.preventDefault(); goBack(); return; }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    if (document.querySelector('#dialog')) closeDialog(); else goBack();
+    return;
+  }
   if (event.target.matches('input, textarea, select, video')) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
   const candidates = [...document.querySelectorAll('a[href],button:not(:disabled),input')].filter(el => el.getClientRects().length && !el.closest('.skip'));
