@@ -124,6 +124,7 @@ jobs:
           --no-daemon
           -PVERSION_NAME=${{ steps.version.outputs.version }}
           -PVERSION_CODE=${{ steps.version.outputs.version_code }}
+          -PhazixMirrorBase=${{ vars.NAS_MIRROR_BASE }}
 
       - name: Verify and stage release files
         if: steps.existing-release.outputs.skip != 'true'
