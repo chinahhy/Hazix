@@ -55,14 +55,37 @@ jobs:
           java-version: "17"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-      - name: Test and lint TV and mobile apps
-        run: >-
-          ./gradlew
-          :nativeapp:testDebugUnitTest
-          :mobileapp:testDebugUnitTest
-          :nativeapp:lintDebug
-          :mobileapp:lintDebug
-          --no-daemon
+      - name: Unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :nativeapp:testDebugUnitTest :mobileapp:testDebugUnitTest \
+            --no-daemon 2>&1 | tee gradle-unit-tests.log
+      - name: Lint
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :nativeapp:lintDebug :mobileapp:lintDebug \
+            --no-daemon 2>&1 | tee gradle-lint.log
+      - name: Surface Gradle failures
+        # Downloading a job log requires repository admin rights, while check
+        # annotations are public. Repeat the failing lines here so the reason for
+        # a red build is readable from the checks API as well as the UI.
+        if: failure()
+        shell: bash
+        run: |
+          for LOG in gradle-unit-tests.log gradle-lint.log; do
+            [ -f "$LOG" ] || continue
+            DETAIL=$(
+              grep -E 'e: |error:|Error|FAILED|FAILURE|Lint found|Caused by|expected:|but was:' "$LOG" |
+                head -25 | cut -c1-200 | tr '\n' '~' | sed 's/%/%25/g; s/\r//g'
+            )
+            if [ -n "$DETAIL" ]; then
+              echo "::error title=${LOG}::${DETAIL}"
+            else
+              echo "::error title=${LOG}::no matching lines; see the job log"
+            fi
+          done
       - name: Upload reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
