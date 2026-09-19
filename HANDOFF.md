@@ -326,6 +326,21 @@ apksigner 默认**不校验** v1，会直接打印 `v1 scheme: false`，那不�
 - **未验证（必须真机确认）**：电视上点「安装更新」后系统安装器是否真的完成升级。
   本机没有可用的安卓设备（`adb devices` 为空），模拟器仍受沙箱限制。
 
+### 4b. 本轮发布状态：v3.6.4（2026-09-19）
+
+- 提交 `180ccc2` 推到 `main`，tag `v3.6.4` 触发 `release-apks.yml`，云端签名并发布：
+  <https://github.com/chinahhy/Hazix/releases/tag/v3.6.4>
+- 官方电视包 `Hazix-TV-v3.6.4.apk` 已实测：
+  - `apksigner verify -v --min-sdk-version 23 --print-certs`：**v1 true + v2 true**，
+    signer SHA-256 = `6f4c4390…f9f1`，与已安装版本同一把钥匙，可直接覆盖安装；
+  - `aapt2 dump badging`：`tv.hdao.app`，versionCode 3006004 / versionName 3.6.4；
+  - SHA-256 `f2a08a7b…7e05`，与 release 的 `SHA256SUMS.txt` 一致；
+  - dex 内含新界面串「更新包已就绪」。
+- 手机包 `Hazix-Mobile-v3.6.4.apk`：SHA-256 `30176158…7fa3`。
+- 两个包已归档进 `dist/`，校验值追加到 `dist/SHA256SUMS.txt`（该文件受版本控制，APK 被 gitignore）。
+- **用户必须手动装一次 v3.6.4**：他电视上那版（≤ v3.6.1 的某个版本）的应用内升级永远走不通，
+  装完这一次之后，后续版本才能靠应用内升级完成。
+
 ### 5. 给下一个接手的代理
 
 - 不要再相信"本机不能编译 Kotlin"这条旧结论，第 3 节的做法可直接复用；
