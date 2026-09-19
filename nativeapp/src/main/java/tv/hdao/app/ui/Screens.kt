@@ -678,7 +678,13 @@ fun SearchScreen(
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
                 value = state.query,
-                onValueChange = { state.query = it },
+                onValueChange = {
+                    state.query = it
+                    // Clearing the field goes back to the recent searches, so the
+                    // history stays reachable after a search instead of only on the
+                    // first visit of a session.
+                    if (it.isBlank()) state.results = null
+                },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontSize = 18.sp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
