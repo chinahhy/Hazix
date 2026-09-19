@@ -204,10 +204,16 @@ private fun NativePlayer(
         }
     }
 
-    LaunchedEffect(controlsTick) {
-        controlsVisible = true
+    // Keyed on isPlaying as well as controlsTick. The previous version waited a
+    // fixed 4.5s from the last interaction and only hid the controls if playback
+    // had started by then, so any source that needed longer to start playing
+    // (anime episodes are the reported case) left the progress bar on screen
+    // forever. Now the countdown starts when playback actually starts, and it
+    // never hides while the player is paused or buffering.
+    LaunchedEffect(controlsTick, isPlaying) {
+        if (!isPlaying) return@LaunchedEffect
         delay(4_500L)
-        if (isPlaying) controlsVisible = false
+        controlsVisible = false
     }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
