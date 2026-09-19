@@ -641,3 +641,26 @@ GitHub（3MB/s），容器访问 `hdao.tv` 也正常。所以中转站的回源�
 2. 中文路径下 `new URL(import.meta.url).pathname` 是百分号编码，启动判断永远为假；
 3. 加速镜像的 URL 形状是 `<前缀>/<owner>/<repo>/...`，不能把完整 github URL 再拼一次
    （我第一次就拼成了 `gh-proxy.com/https://github.com/https://github.com/...`，全是 404）。
+
+## 2026-09-19 · DSH 第五轮：发布 v3.7.0
+
+发版内容 = 第四轮的更新机制改造（后台自动检查 + NAS 中转 + 私有网段明文放行）。
+**首页 Netflix 视觉、顶栏字号、按键音效仍只在浏览器预览里，不在这个 APK 里**——
+CHANGELOG 的 3.7.0 条目已按「电视端 / 浏览器预览」两段写清，别把预览的东西算进 APK。
+
+发版步骤（本轮照此执行）：
+
+1. `CHANGELOG.md` 写 3.7.0 条目（含"预览不在本包内"的说明）；
+2. 提交并推到 `main`；
+3. 打 tag `v3.7.0` 并推 tag → 触发 `.github/workflows/release-apks.yml`：
+   用云端发布钥匙签名、跑 lint、发 GitHub Release，并把新包预热进 NAS 中转站
+   （需要仓库变量 `NAS_MIRROR_BASE=http://10.0.0.104:18088`，没设则跳过预热步骤）；
+4. 下载 Release 里的 `Hazix-TV-v3.7.0.apk`，核对 SHA-256 后归档进 `dist/`，
+   把校验值追加到 `dist/SHA256SUMS.txt`，并在下一段交接里写清哈希。
+
+**本机签名的包绝不能给用户**：`~/.android/debug.keystore` 已不存在，本地只有
+`.tooling/android-user/debug.keystore`（证书 SHA-256 `6161046b…`），与发布链
+（`6f4c4390…`）不同，覆盖安装会被系统拒绝。
+
+**用户必须手动装这一版**：他电视上装的仍是旧版，其应用内更新的下载走 GitHub 直连，
+在他家的网络下很可能失败；只有先手动装上 v3.7.0（内含 NAS 中转），后续版本才走得通。
