@@ -4,6 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// The TV app and the phone app ship as one release. They share a version number
+// and a signing key so that both can be installed over an older build, and so
+// the TV in-app updater keeps a working signature chain. The release workflow
+// passes -PVERSION_NAME/-VERSION_CODE derived from the release tag.
+val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse("3.3.9")
+val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(17)
+val releaseKeystorePath = providers.environmentVariable("HAZIX_RELEASE_KEYSTORE")
+    .orElse("${System.getProperty("user.home")}/.android/debug.keystore")
+
 android {
     namespace = "tv.hdao.mobile"
     compileSdk = 35
@@ -12,8 +21,21 @@ android {
         applicationId = "tv.hdao.mobile"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = releaseVersionCode.get()
+        versionName = releaseVersionName.get()
+    }
+
+    signingConfigs {
+        // Deliberately the same key as :nativeapp. The previous configuration
+        // reused AGP's debug signing config, whose keystore silently moves with
+        // ANDROID_USER_HOME, so a cloud build could produce an APK that cannot
+        // be installed over an already released one.
+        create("hazixRelease") {
+            storeFile = file(releaseKeystorePath.get())
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     sourceSets["main"].java.srcDir("../nativeapp/src/main/java/tv/hdao/app/data")
@@ -30,7 +52,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("hazixRelease")
         }
     }
 
