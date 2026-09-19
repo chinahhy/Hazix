@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recentProgress, recentHot, categoryItems, escapeHTML, imageURL, playbackURL, ratingOf } from '../public/data.js';
+import { recentProgress, recentHot, categoryItems, escapeHTML, imageURL, playbackURL, ratingOf, isFeedbackKey } from '../public/data.js';
 import { apiTarget, tmdbMediaType, tmdbScoreFromHTML } from '../server.mjs';
 
 test('继续观看按节目 ID 和标准化片名去重，排除看完的集数', () => {
@@ -43,4 +43,12 @@ test('接口仅允许现有片库路由，不能作为任意网址代理', () =>
   assert.equal(apiTarget(new URL('http://localhost/api/vods/123?url=http://localhost:8000')).href, 'https://hdao.tv/api/vods/123');
   assert.equal(apiTarget(new URL('http://localhost/api/proxy?url=http://localhost')), null);
   assert.equal(apiTarget(new URL('http://localhost/api/admin')), null);
+});
+test('只有遥控器导航、确认和返回键才触发按键音效', () => {
+  for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) assert.equal(isFeedbackKey(key), true, key);
+  for (const key of ['Enter', ' ', 'Spacebar', 'Escape', 'Backspace', 'BrowserBack']) assert.equal(isFeedbackKey(key), true, key);
+  // 音量键、电源键、修饰键和组合键不该出声
+  for (const key of ['a', 'A', 'AudioVolumeUp', 'AudioVolumeDown', 'Shift', 'Control', 'Meta', 'Tab', 'F5', '']) assert.equal(isFeedbackKey(key), false, key);
+  assert.equal(isFeedbackKey('ArrowRight', { ctrlKey: true }), false);
+  assert.equal(isFeedbackKey(undefined), false);
 });

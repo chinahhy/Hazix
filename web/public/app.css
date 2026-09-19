@@ -40,28 +40,35 @@ svg { flex: 0 0 auto; }
   top: 0;
   left: 0;
   width: 100%;
-  height: 68px;
+  height: 84px;
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 34px;
   padding: 0 var(--gutter);
   background: linear-gradient(180deg, rgba(0,0,0,.9) 0%, rgba(0,0,0,.55) 55%, transparent 100%);
   transition: background .3s ease;
 }
 #nav.scrolled { background: #141414; }
 .brand { display: grid; place-items: center; flex: 0 0 auto; }
-.brand img { width: 34px; height: 34px; border-radius: 6px; }
-.desktop-nav { display: flex; align-items: center; gap: 18px; }
-.desktop-nav a { color: #e5e5e5; font-size: 15px; font-weight: 500; white-space: nowrap; transition: color .18s ease; }
+.brand img { width: 42px; height: 42px; border-radius: 8px; }
+/* 10-foot UI: this row is read from the sofa, not from a desk. 21px here is
+   about what 17px feels like on a monitor, which is why 15px looked tiny on a
+   65-inch screen. Keep it at or above ~20px at 1080p. */
+.desktop-nav { display: flex; align-items: center; gap: 26px; }
+.desktop-nav a { color: #e5e5e5; font-size: 21px; font-weight: 500; white-space: nowrap; transition: color .18s ease; }
 .desktop-nav a:hover { color: #b3b3b3; }
 .desktop-nav a[aria-current] { color: #fff; font-weight: 600; }
-.nav-actions { margin-left: auto; display: flex; align-items: center; gap: 16px; }
-.search-link, .profile-link { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 4px; color: #fff; transition: opacity .18s ease; }
+.nav-actions { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+.search-link, .profile-link { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 4px; color: #fff; transition: opacity .18s ease; }
 .search-link:hover, .profile-link:hover { opacity: .75; }
-.search-link svg, .profile-link svg { width: 21px; height: 21px; }
-.update-link { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border: 0; border-radius: var(--radius); background: transparent; color: #e5e5e5; font-size: 14px; transition: background .18s ease, color .18s ease; }
+.search-link svg, .profile-link svg { width: 26px; height: 26px; }
+.update-link { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: var(--radius); background: transparent; color: #e5e5e5; font-size: 18px; transition: background .18s ease, color .18s ease; }
 .update-link:hover { background: rgba(255,255,255,.14); color: #fff; }
-.update-link svg { width: 19px; height: 19px; }
+.update-link svg { width: 22px; height: 22px; }
+.sound-toggle { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #e5e5e5; transition: opacity .18s ease, color .18s ease; }
+.sound-toggle:hover { opacity: .75; }
+.sound-toggle[aria-pressed="false"] { color: #6d6d6d; }
+.sound-toggle svg { width: 26px; height: 26px; }
 .mobile-nav { display: none; }
 
 .hero { position: relative; display: flex; align-items: flex-end; min-height: min(500px, 68vh); padding: 118px var(--gutter) 40px; isolation: isolate; }
@@ -215,7 +222,7 @@ video { display: block; width: 100%; max-height: calc(100dvh - 185px); aspect-ra
 .dialog-actions { display: flex; gap: 10px; margin-top: 22px; }
 
 @media (min-width: 1500px) {
-  .hero { min-height: min(540px, 72vh); padding-top: 132px; }
+  .hero { min-height: min(540px, 72vh); padding-top: 146px; }
   .hero-copy { max-width: 680px; }
   .hero-description { max-width: 620px; }
   .poster-card.landscape-card { flex-basis: clamp(272px, 17vw, 340px); }
@@ -224,10 +231,13 @@ video { display: block; width: 100%; max-height: calc(100dvh - 185px); aspect-ra
 
 @media (max-width: 1100px) and (min-width: 701px) {
   :root { --gutter: 28px; }
-  #nav { gap: 16px; }
-  .desktop-nav { gap: 12px; }
-  .desktop-nav a { font-size: 14px; }
-  .hero { min-height: 660px; padding-top: 130px; }
+  #nav { gap: 20px; height: 76px; }
+  .desktop-nav { gap: 18px; }
+  .desktop-nav a { font-size: 18px; }
+  .search-link, .profile-link { width: 36px; height: 36px; }
+  .search-link svg, .profile-link svg, .sound-toggle svg { width: 23px; height: 23px; }
+  .update-link { font-size: 16px; }
+  .hero { min-height: 660px; padding-top: 136px; }
   .hero-copy { max-width: 480px; }
   .hero-copy h1 { font-size: 40px; }
   .hero-description { max-width: 440px; font-size: 14px; }
@@ -242,7 +252,8 @@ video { display: block; width: 100%; max-height: calc(100dvh - 185px); aspect-ra
   .brand img { width: 30px; height: 30px; border-radius: 6px; }
   .desktop-nav { display: none; }
   .nav-actions { gap: 10px; }
-  .search-link, .profile-link { width: 32px; height: 32px; }
+  .search-link, .profile-link, .sound-toggle { width: 32px; height: 32px; }
+  .sound-toggle svg { width: 22px; height: 22px; }
   .mobile-nav { position: fixed; z-index: 40; right: 0; bottom: 0; left: 0; height: 66px; display: flex; align-items: center; justify-content: space-around; padding: 7px 24px max(7px, env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.94); backdrop-filter: blur(16px); }
   .mobile-nav a { min-width: 70px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: #999; font-size: 10px; }
   .mobile-nav a[aria-current] { color: #fff; }

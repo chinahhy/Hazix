@@ -1,4 +1,5 @@
-import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, categoryItems, recentProgress, playbackURL } from './data.js';
+import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, categoryItems, recentProgress, playbackURL, isFeedbackKey } from './data.js';
+import { soundEnabled, setSoundEnabled, playMoveSound, playConfirmSound, playBackSound } from './sound.js';
 
 const content = document.querySelector('#content');
 const icons = {
@@ -14,7 +15,15 @@ const icons = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
   hot: '<path d="M13.5 2.5c.4 3-1.6 4.5-3.3 6.2-1.5 1.5-2.4 3.1-1.3 5.1.4-1.8 1.7-2.8 3-3.6-.2 2.1 1.4 3.2 2.1 4.7.7 1.5.3 3.4-.8 4.6 3.7-.6 6.3-3.4 6.3-7.3 0-4.7-2.8-8.5-6-12.7Z"/><path d="M10.3 21c-2.3-.8-3.8-2.8-3.8-5.4 0-1.8.8-3.4 2-4.8"/>',
   update: '<path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5"/><path d="M4 4v4.5h4.5"/><path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5"/><path d="M20 20v-4.5h-4.5"/>',
+  soundOn: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path d="M18 7a7 7 0 0 1 0 10"/>',
+  soundOff: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="m16 9.5 5 5m0-5-5 5"/>',
 };
+
+/** 遥控器按键音效开关：电视端用系统按键音，浏览器端用合成的短音。 */
+function soundToggleMarkup() {
+  const on = soundEnabled();
+  return `<button class="sound-toggle" type="button" data-sound-toggle aria-pressed="${on}" aria-label="${on ? '关闭按键音效' : '打开按键音效'}" title="${on ? '按键音效：开' : '按键音效：关'}">${icon(on ? 'soundOn' : 'soundOff')}</button>`;
+}
 
 // The preview mirrors the TV app's version gate. In the packaged web bundle the
 // version comes from the build; when the file is opened directly it reads the
@@ -62,7 +71,7 @@ async function detail(id) {
 function nav(selected, nested) {
   document.querySelector('#nav').innerHTML = `<a class="brand" href="#home" aria-label="首页"><img src="/brand.png" alt=""></a>
     <nav class="desktop-nav" aria-label="主导航">${[['home', '首页'], ...categories].map(([key, label]) => `<a href="#${key === 'home' ? 'home' : `category/${key}`}" ${key === selected ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-    <div class="nav-actions"><button class="update-link" type="button" data-update>${icon('update')}<span>检查更新</span></button><a class="search-link" href="#search" aria-label="搜索">${icon('search')}</a><a class="profile-link" href="#my" aria-label="我的">${icon('user')}</a></div>
+    <div class="nav-actions"><button class="update-link" type="button" data-update>${icon('update')}<span>检查更新</span></button>${soundToggleMarkup()}<a class="search-link" href="#search" aria-label="搜索">${icon('search')}</a><a class="profile-link" href="#my" aria-label="我的">${icon('user')}</a></div>
     <nav class="mobile-nav" aria-label="手机导航">${[['home', '首页', 'home', '#home'], ['movie', '影视', 'movie', '#category/movie'], ['tv', '剧集', 'tv', '#category/tv']].map(([key, label, glyph, href]) => `<a href="${href}" ${key === selected ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span></a>`).join('')}</nav>`;
   document.body.classList.toggle('nested', nested);
 }
@@ -151,6 +160,16 @@ async function home(stamp) {
     if (!document.hidden && !hero.matches(':hover') && !hero.contains(document.activeElement) && !matchMedia('(prefers-reduced-motion: reduce)').matches) show(selected + 1);
   }, 8000);
   cleanup = () => window.removeEventListener('scroll', syncNav);
+}
+/**
+ * Remote-control feedback: move/confirm/back click, hold-to-repeat stays quiet.
+ * Key repeat is filtered because event.repeat is true for every held key frame.
+ */
+function playKeyFeedback(event) {
+  if (event.repeat || !isFeedbackKey(event.key, event)) return;
+  if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'BrowserBack') playBackSound();
+  else if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') playConfirmSound();
+  else playMoveSound();
 }
 function closeDialog() {
   document.querySelector('#dialog')?.remove();
@@ -361,6 +380,15 @@ content.addEventListener('click', event => {
 document.addEventListener('click', event => {
   if (event.target.closest('[data-dialog-close]')) { closeDialog(); return; }
   if (event.target.closest('[data-update]')) { checkUpdate(); return; }
+  if (event.target.closest('[data-sound-toggle]')) {
+    setSoundEnabled(!soundEnabled());
+    const button = event.target.closest('[data-sound-toggle]');
+    const on = soundEnabled();
+    button.setAttribute('aria-pressed', String(on));
+    button.innerHTML = icon(on ? 'soundOn' : 'soundOff');
+    if (on) notice('按键音效已打开');
+    return;
+  }
   const link = event.target.closest('a[href^="#"]');
   if (link?.hash === '#content') { event.preventDefault(); content.focus(); return; }
   if (link && link.hash !== location.hash) {
@@ -370,6 +398,7 @@ document.addEventListener('click', event => {
   }
 });
 document.addEventListener('keydown', event => {
+  playKeyFeedback(event);
   if (event.key === 'Escape') {
     event.preventDefault();
     if (document.querySelector('#dialog')) closeDialog(); else goBack();

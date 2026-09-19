@@ -15,6 +15,16 @@ export function imageURL(value, size = 'w500') {
   } catch { return ''; }
 }
 export const idOf = item => Number(item.vodId || item.id);
+// Keys that should produce remote-control feedback. Mirrors the Kotlin side,
+// which plays SoundEffectConstants.CLICK on every d-pad move and confirm.
+const SOUND_IGNORED_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'F5', 'F11', 'F12']);
+const SOUND_MOVE_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+const SOUND_CONFIRM_KEYS = new Set(['Enter', ' ', 'Spacebar']);
+export function isFeedbackKey(key, { altKey = false, ctrlKey = false, metaKey = false } = {}) {
+  if (typeof key !== 'string' || !key || SOUND_IGNORED_KEYS.has(key)) return false;
+  if (altKey || ctrlKey || metaKey) return false;
+  return SOUND_MOVE_KEYS.has(key) || SOUND_CONFIRM_KEYS.has(key) || key === 'Escape' || key === 'Backspace' || key === 'BrowserBack';
+}
 export function ratingOf(item) {
   for (const [source, value] of [['豆瓣', item.doubanScore], ['TMDB', item.tmdbScore]]) {
     const score = Number(value);

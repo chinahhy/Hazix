@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check public/app.js && node --check public/preview.js",
+    "check": "node --check server.mjs && node --check public/app.js && node --check public/preview.js && node --check public/data.js && node --check public/sound.js",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {

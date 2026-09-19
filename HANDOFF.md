@@ -454,3 +454,40 @@ cd web && pnpm run check && pnpm test           # 8/8 通过
 `web/public/app.css`（弹窗、检查更新按钮、巨幕与行距收紧）、`web/public/app.html`（版本占位）、
 `web/server.mjs`（`APP_VERSION` 注入）、`HANDOFF.md`。
 `pnpm run check` 与 `pnpm test`（8/8）在每次改动后都跑过。
+
+### 7. 用户第三次反馈：顶栏字号 + 遥控器按键音效
+
+1. **顶栏分类字号太小（65 寸电视）** —— 之前按 Netflix 网页的 15px 做，但那是桌面视距；
+   10-foot UI 要按客厅视距放大。已改为：分类链接 `21px`（≥1500px 断点），中屏断点
+   `18px`（原来是 14px），logo 34→42px，图标 21→26px，导航高 68→84px，项间距 18→26px，
+   「检查更新」14→18px。巨幕 `padding-top` 同步加到 146px，避免顶栏压住标题。
+   **规矩：1080p 下顶栏文字不要低于 20px，中屏不要低于 18px。**
+2. **遥控器按键声：确实从来没有** —— 全仓搜过，`SoundEffectConstants` / `playSoundEffect` /
+   `AudioManager` 一处都没有，不是「不支持」，是没做。预览版先补上：
+   - 新增 `web/public/sound.js`：用 Web Audio 合成短促按键音（移动 660Hz / 确认 880Hz，
+     各带指数衰减，增益 0.055/0.08），开关存 `localStorage['hdao.web.sound.v1']`；
+   - `isFeedbackKey()` 放在 `web/public/data.js`（纯函数、可单测）：只有方向键、Enter/空格、
+     Escape/Backspace/BrowserBack 出声；音量键、电源键、字母键、带修饰键的组合一律静音；
+   - `app.js` 的 keydown 第一行调用 `playKeyFeedback(event)`，`event.repeat` 直接跳过
+     （长按方向键不会连环作响），移动音之间还有 70ms 间隔保护；
+   - 顶栏加了音效开关（音量图标，`data-sound-toggle`），`aria-pressed` 反映状态。
+   - **验证**（`/tmp/sound-test5.mjs`，CDP 发 `isTrusted` 真实按键 + 给真实 AudioContext 打桩
+     统计 `createOscillator` 调用）：连续按 右、左、上、下、Enter、右、下 得到
+     `0,1,1,1,1,1,1` 次发声——**第一次没有声音是浏览器的自动播放策略**（AudioContext 必须等一次
+     用户手势才能 running），用户在预览里点一下页面就解决了；打包后的电视端走 Android
+     系统按键音，没有这个限制。
+   - 单测：`pnpm test` 9/9 通过（新增「只有遥控器导航、确认和返回键才触发按键音效」）。
+     `pnpm run check` 已把 `data.js`、`sound.js` 纳入语法检查。
+
+**给移植到电视端的具体做法（下一轮做）**：
+
+- `nativeapp` 侧新增按键音：`val view = LocalView.current` + `view.playSoundEffect(SoundEffectConstants.CLICK)`，
+  挂在 `HdaoTvApp` 根 Box 的 `onPreviewKeyEvent`（或 `MainActivity` 的 `dispatchKeyEvent` 兜底），
+  `ACTION_DOWN` 且 `repeatCount == 0` 才发声，映射方向键与 Enter/DPAD_CENTER 为 CLICK、
+  返回键为 BACK——与预览的 `isFeedbackKey()` 一一对应；
+- 电视端不需要自己合成音：`playSoundEffect` 走系统音效池（TCL/雷鸟这类机型都带），
+  且用户关系统音量/静音时自动安静；
+- 开关要持久化（`SharedPreferences`，仿 `Favorites`），入口放 `TopNavigation` 顶栏，
+  状态语义与预览的 `aria-pressed` 一致；
+- Kotlin 改动按第 3 节用 `/tmp/hazix` 编译 + `lintDebug` 验证；音效本身**必须真机听**，
+  这台 Mac 没有可用设备（`adb devices` 为空），届时要在交接里写明「未真机验证」。
