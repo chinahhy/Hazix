@@ -4,6 +4,14 @@
 [GitHub Releases](https://github.com/chinahhy/Hazix/releases) 上；本地副本归档在 `dist/`，
 校验值记录在 `dist/SHA256SUMS.txt`。
 
+## 3.7.1 — 2026-09-19
+
+- **修复 v3.7.0 漏掉的构建配置**：仓库变量 `NAS_MIRROR_BASE` 在 3.7.0 构建时尚未设置，
+  所以那一版的 APK 里没有中转站地址，更新仍然只走 GitHub。本版把它真正编进包里
+  （`BuildConfig.MIRROR_BASE_URL`），电视端启动后 5 分钟的自动检查会先访问
+  `http://10.0.0.104:18088`，局域网内约 2 秒完成下载；中转站不可用时自动回退 GitHub。
+- 其余行为与 3.7.0 相同。**请安装这一版**：它是最后一个需要手动安装的版本。
+
 ## 3.7.0 — 2026-09-19
 
 ### 电视端
