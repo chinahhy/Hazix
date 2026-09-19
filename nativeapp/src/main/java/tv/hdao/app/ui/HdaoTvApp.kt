@@ -139,7 +139,6 @@ fun HdaoTvApp() {
                         else -> openRoot(Screen.Category(key, title))
                     }
                 },
-                onCheckUpdate = { updateViewModel.check(manual = true) },
                 contentFocusRequester = contentFocusRequester,
                 selectedFocusRequester = navigationFocusRequester,
                 modifier = Modifier.align(Alignment.TopStart).zIndex(20f),

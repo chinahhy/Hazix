@@ -53,6 +53,26 @@ private const val MAX_CHECKSUM_BYTES = 256L * 1024L
 private const val SIGNING_FLAGS =
     PackageManager.GET_SIGNATURES or PackageManager.GET_SIGNING_CERTIFICATES
 
+/**
+ * One place a release can be fetched from. [api] is null for a NAS mirror,
+ * which serves the GitHub paths but not the REST API.
+ */
+internal data class ReleaseSource(val label: String, val base: String, val api: String?)
+
+/**
+ * The NAS release mirror, when the household has one. It serves exactly the
+ * GitHub release paths (see tools/nas-release-proxy.mjs), so only the host
+ * changes and every existing URL check keeps working.
+ */
+data class MirrorSettings(
+    val baseUrl: String?,
+    val timeoutSeconds: Long,
+)
+
+private const val MIRROR_PROBE_INTERVAL_MS = 30L * 60L * 1000L
+private const val MIRROR_TIMEOUT_SECONDS = 4L
+private const val GITHUB_BASE = "https://github.com"
+
 data class UpdateRelease(
     val version: String,
     val tag: String,
@@ -66,26 +86,92 @@ data class UpdateRelease(
 class UpdateManager(private val context: Context) {
     private val client = NetworkClients.httpClient
 
+    /**
+     * While true the LAN mirror is tried first. Set to false after a check that
+     * had to fall through to GitHub (the NAS is off, or the TV is on another
+     * network), and re-armed after [MIRROR_PROBE_INTERVAL_MS].
+     */
+    private var mirrorProbeDue = true
+    private var mirrorProbedAt = 0L
+
+    /**
+     * The NAS mirror address, when the household has one.
+     *
+     * Set at build time with `-PhazixMirrorBase=http://192.168.1.10:8088` (baked
+     * into [BuildConfig.MIRROR_BASE_URL]) and overridable at runtime by writing
+     * the same value into the `update_mirror` preferences, so a changed LAN
+     * address does not need a new APK. Nothing is hard-coded: with no address
+     * configured the updater talks to GitHub exactly as before.
+     */
+    fun mirrorSettings(): MirrorSettings? {
+        val stored = context.getSharedPreferences("update_mirror", Context.MODE_PRIVATE)
+            .getString("baseUrl", null)
+        val base = stored?.trim()?.takeIf { it.isNotEmpty() }
+            ?: BuildConfig.MIRROR_BASE_URL.trim().takeIf { it.isNotEmpty() }
+            ?: return null
+        return MirrorSettings(
+            baseUrl = normalizeMirrorBase(base) ?: return null,
+            timeoutSeconds = MIRROR_TIMEOUT_SECONDS,
+        )
+    }
+
     /** The same client, but exposing the redirect that carries the newest tag. */
     private val redirectClient = client.newBuilder()
         .followRedirects(false)
         .followSslRedirects(false)
         .build()
 
-    suspend fun checkForUpdate(): UpdateRelease? = withContext(Dispatchers.IO) {
-        if (BuildConfig.DEBUG) return@withContext null
-        val viaApi = runCatching { latestFromApi() }
-        // api.github.com answers unauthenticated callers per public IP and a
-        // household that has spent its 60 requests gets 403 for the rest of the
-        // hour; on some networks it is unreachable outright. github.com serves
-        // /releases/latest without any API quota, so fall back to it instead of
-        // leaving the user with no way to update at all.
-        viaApi.getOrElse { latestFromRedirect() }
+    /**
+     * The LAN mirror is tried before GitHub: it is one hop away, usually much
+     * faster, and works on a TV whose route to GitHub is blocked. A mirror that
+     * does not answer within [MirrorSettings.timeoutSeconds] is skipped until
+     * [mirrorProbeDue], so an unreachable NAS (the TV is away from home) costs a
+     * few seconds once, not on every check.
+     */
+    suspend fun checkForUpdate(mirror: MirrorSettings? = null): UpdateRelease? =
+        withContext(Dispatchers.IO) {
+            if (BuildConfig.DEBUG) return@withContext null
+            val sources = sourcesFor(mirror)
+            var lastError: Throwable? = null
+            for (source in sources) {
+                try {
+                    val release = checkAt(source)
+                    mirrorProbeDue = source.base != GITHUB_BASE
+                    mirrorProbedAt = System.currentTimeMillis()
+                    return@withContext release
+                } catch (error: Throwable) {
+                    lastError = error
+                }
+            }
+            throw lastError ?: error("检查更新失败")
+        }
+
+    private fun checkAt(source: ReleaseSource): UpdateRelease? {
+        // A mirror answers the release paths only, so its newest tag comes from
+        // the redirect; GitHub also offers the REST API, which carries the
+        // release notes and the exact asset size.
+        val fromRedirect = runCatching { latestFromRedirect(source) }
+        return source.api?.let { api ->
+            runCatching { latestFromApi(api, source) }
+                .getOrElse { fromRedirect.getOrThrow() }
+        } ?: fromRedirect.getOrThrow()
     }
 
-    private fun latestFromApi(): UpdateRelease? {
+    private fun sourcesFor(mirror: MirrorSettings?): List<ReleaseSource> {
+        val github = ReleaseSource("GitHub", GITHUB_BASE, LATEST_RELEASE_URL)
+        val base = mirror?.baseUrl?.takeIf { it.isNotBlank() } ?: return listOf(github)
+        if (!mirrorProbeDue && System.currentTimeMillis() - mirrorProbedAt < MIRROR_PROBE_INTERVAL_MS) {
+            return listOf(github)
+        }
+        return listOf(
+            ReleaseSource("NAS 中转站", base, null),
+            github,
+        )
+    }
+
+    private fun latestFromApi(api: String, source: ReleaseSource): UpdateRelease? {
         val request = okhttp3.Request.Builder()
-            .url(LATEST_RELEASE_URL)
+            .url(api)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .header("User-Agent", API_USER_AGENT)
@@ -123,8 +209,8 @@ class UpdateManager(private val context: Context) {
             }
         }
         require(apkSize in 1..MAX_APK_BYTES) { "更新包大小异常" }
-        val resolvedApkUrl = requireTrustedReleaseUrl(apkUrl)
-        val resolvedChecksumUrl = requireTrustedReleaseUrl(checksumUrl)
+        val resolvedApkUrl = requireTrustedReleaseUrl(apkUrl, source.base)
+        val resolvedChecksumUrl = requireTrustedReleaseUrl(checksumUrl, source.base)
         return UpdateRelease(
             version = version,
             tag = tag,
@@ -141,25 +227,31 @@ class UpdateManager(private val context: Context) {
      * notes are unavailable on this path, which is acceptable: the caller shows
      * its generic "a new version is ready" text when the notes are blank.
      */
-    private fun latestFromRedirect(): UpdateRelease? {
+    private fun latestFromRedirect(source: ReleaseSource): UpdateRelease? {
         val request = okhttp3.Request.Builder()
-            .url(LATEST_RELEASE_PAGE_URL)
+            .url("${source.base}/chinahhy/Hazix/releases/latest")
             .header("User-Agent", API_USER_AGENT)
             .build()
         val location = redirectClient.newCall(request).execute().use { response ->
             if (!response.isRedirect) error("检查更新失败（${response.code}）")
             response.header("Location")
         }
-        val tag = tagFromReleaseLocation(location) ?: error("发布页没有给出最新版本号")
+        val tag = tagFromReleaseLocation(location, source.base)
+            ?: error("发布页没有给出最新版本号")
         val version = tag.removePrefix("v")
         if (!isNewerVersion(version, BuildConfig.VERSION_NAME)) return null
-        return releaseForVersion(version = version, tag = tag, apkSize = remoteApkSize(version, tag))
+        return releaseForVersion(
+            version = version,
+            tag = tag,
+            apkSize = remoteApkSize(version, tag, source),
+            base = source.base,
+        )
     }
 
     /** Best effort: an unknown size only costs the progress bar and a size check. */
-    private fun remoteApkSize(version: String, tag: String): Long = runCatching {
+    private fun remoteApkSize(version: String, tag: String, source: ReleaseSource): Long = runCatching {
         val request = okhttp3.Request.Builder()
-            .url(releaseDownloadUrl(tag, apkNameFor(version)))
+            .url(releaseDownloadUrl(tag, apkNameFor(version), source.base))
             .head()
             .header("User-Agent", API_USER_AGENT)
             .build()
@@ -369,8 +461,30 @@ class UpdateManager(private val context: Context) {
 
 internal fun apkNameFor(version: String): String = "$APK_NAME_PREFIX$version$APK_NAME_SUFFIX"
 
-internal fun releaseDownloadUrl(tag: String, apkName: String): String =
-    "https://github.com/chinahhy/Hazix/releases/download/$tag/$apkName"
+/**
+ * Accepts `192.168.1.10:8088`, `nas.local:8088` or a full URL, and returns the
+ * scheme-qualified base. Returns null for anything that is not a plain host
+ * (no path, no query), so a mistyped address degrades to "no mirror" instead of
+ * producing broken download URLs.
+ */
+internal fun normalizeMirrorBase(raw: String): String? {
+    val trimmed = raw.trim().trimEnd('/')
+    if (trimmed.isEmpty()) return null
+    val candidate = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        trimmed
+    } else {
+        "http://$trimmed"
+    }
+    val url = candidate.toHttpUrlOrNull() ?: return null
+    if (url.encodedPath != "/") return null
+    return candidate
+}
+
+internal fun releaseDownloadUrl(
+    tag: String,
+    apkName: String,
+    base: String = GITHUB_BASE,
+): String = "${base.trimEnd('/')}/chinahhy/Hazix/releases/download/$tag/$apkName"
 
 /**
  * `https://github.com/chinahhy/Hazix/releases/tag/v3.6.4` → `v3.6.4`.
@@ -378,9 +492,15 @@ internal fun releaseDownloadUrl(tag: String, apkName: String): String =
  * Anything that is not a release-tag URL on github.com yields null, so a captive
  * portal or a proxy error page can never be mistaken for a release.
  */
-internal fun tagFromReleaseLocation(location: String?): String? {
+internal fun tagFromReleaseLocation(location: String?, base: String = GITHUB_BASE): String? {
     val url = location?.toHttpUrlOrNull() ?: return null
-    if (url.scheme != "https" || url.host != "github.com") return null
+    val expected = base.toHttpUrlOrNull() ?: return null
+    // github.com always answers over https. A NAS mirror may answer over plain
+    // http on the LAN, so cleartext is allowed only for the configured mirror
+    // host - never for github.com and never for anything else.
+    val trustedScheme = if (url.host == "github.com") "https" else expected.scheme
+    if (url.host != expected.host && url.host != "github.com") return null
+    if (url.scheme != trustedScheme) return null
     return url.encodedPath
         .substringAfterLast(RELEASE_TAG_MARKER, "")
         .takeIf { tag -> tag.matches(Regex("v\\d+(\\.\\d+)*")) }
@@ -396,6 +516,7 @@ internal fun releaseForVersion(
     tag: String = "v$version",
     notes: String = "",
     apkSize: Long = -1L,
+    base: String = GITHUB_BASE,
 ): UpdateRelease {
     val apkName = apkNameFor(version)
     return UpdateRelease(
@@ -403,9 +524,10 @@ internal fun releaseForVersion(
         tag = tag,
         notes = notes,
         apkName = apkName,
-        apkUrl = requireTrustedReleaseUrl(releaseDownloadUrl(tag, apkName)),
+        apkUrl = requireTrustedReleaseUrl(releaseDownloadUrl(tag, apkName, base), base),
         checksumUrl = requireTrustedReleaseUrl(
-            releaseDownloadUrl(tag, CHECKSUM_FILE_NAME),
+            releaseDownloadUrl(tag, CHECKSUM_FILE_NAME, base),
+            base,
         ),
         apkSize = apkSize,
     )
@@ -440,9 +562,16 @@ private fun numericVersion(value: String): List<Int>? {
     return normalized.split('.').map { it.toIntOrNull() ?: return null }
 }
 
-private fun requireTrustedReleaseUrl(value: String?): String {
+private fun requireTrustedReleaseUrl(value: String?, base: String = GITHUB_BASE): String {
     val url = value?.toHttpUrlOrNull() ?: error("更新下载地址缺失")
-    require(url.scheme == "https" && url.host == "github.com") { "更新下载地址不可信" }
+    val expected = base.toHttpUrlOrNull() ?: error("更新源地址不可信")
+    require(url.host == expected.host) { "更新下载地址不可信" }
+    if (url.host == "github.com") {
+        require(url.scheme == "https") { "更新下载地址不可信" }
+    } else {
+        // A LAN mirror may use http, but only when it is the configured source.
+        require(url.scheme == expected.scheme) { "更新下载地址不可信" }
+    }
     require(url.encodedPath.startsWith(RELEASE_DOWNLOAD_PREFIX)) { "更新下载地址不属于本项目" }
     return value
 }

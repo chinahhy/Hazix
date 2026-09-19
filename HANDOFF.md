@@ -524,3 +524,76 @@ documentary 48/50 有分；只有 shortDrama 50 部**全无评分**），
 实测：首页 `badges: 6`（6.7/6.4/7.2/8.7/8.8/8.3）；分类页 `cards: 72, badges: 72`，
 无 JS 异常。**评分显示不要再删**——它不是装饰，是用户挑片的主要依据。
 `rgba(#46d369)` 只在文字上用于强调，没有回到大金色块。
+
+## 2026-09-19 · DSH 第四轮：更新机制改后台自动检查 + NAS 中转站
+
+用户两条要求：
+1. **删掉「检查更新」入口**，改成后台任务：每次打开软件自动在后台查版本，有更新就提醒，
+   让用户选「立即更新 / 稍后」。
+2. **大陆网络访问 GitHub 不方便**，用他自己的 NAS 做中转。
+
+### 1. 更新检查改成真正的后台任务
+
+| 文件 | 改动 |
+| --- | --- |
+| `ui/Components.kt` | 删除顶栏「检查更新」项与 `onCheckUpdate` 参数（连带不再需要那里用到的 `Icons.Rounded.Refresh` 导航项） |
+| `ui/HdaoTvApp.kt` | 去掉 `onCheckUpdate` 传参；`UpdateCoordinator` 保留 |
+| `ui/UpdateDialog.kt` | `Checking` 状态不再弹窗（后台检查不该有 UI 痕迹）；`UpToDate` 分支删除；`Available` 的按钮改成「立即更新 / 稍后」；失败重试改调 `check(force = true)`；启动检查前 `delay(5 分钟)` 等电视把网络拉起来 |
+| `update/UpdateViewModel.kt` | 状态机精简为 `Hidden / Checking / Available / Downloading / Ready / Failed`；`check(manual)` 改为 `check(force)`；用 `SharedPreferences("update_check").lastCheckAt` 做节流：**成功 6 小时**、**失败 10 分钟**后再试，所以"每次打开都查"不会真的每次都打网络，开机时网络没就绪也能在几分钟后自动补上 |
+
+行为：电视开机 → 5 分钟后静默检查 → 有新版本就弹「发现新版本 vX」+「立即更新 / 稍后」。
+没有新版本、或网络失败，界面完全不出现（静默）。
+
+### 2. NAS 中转站（`tools/nas-release-proxy.mjs`）
+
+程序只依赖 Node 标准库（Node 18+），**保持和 GitHub 完全一样的 URL 结构**，
+所以 App 侧只换 host，`tagFromReleaseLocation`、`requireTrustedReleaseUrl`、
+SHA-256 校验逻辑一行都不用改。部署说明见 `tools/README-nas-mirror.md`
+（compose / docker run / 直接 node 三种写法，群晖威联通都适用）。
+
+本机实测：
+
+```text
+/healthz                     → {"ok":true,...}
+/releases/latest             → 302 到 releases/tag/v3.6.4
+首次下载（回源 GitHub）       → 1.12s, 2.5 MB/s
+二次下载（命中 NAS 缓存）     → 0.18s, 15.7 MB/s
+Range 断点续传               → 206，8KB 正确
+SHA-256                      → f2a08a7b… 与 dist/SHA256SUMS.txt 一致
+非白名单路径                  → 404
+```
+
+**踩到的坑**：`path.resolve(process.argv[1]) === new URL(import.meta.url).pathname`
+在含中文的仓库路径下永远不相等（URL 的 pathname 是百分号编码的），
+结果进程启动后什么都不监听、也不报错。必须用 `fileURLToPath(import.meta.url)`——
+本仓库的 `web/server.mjs` 早就这么写了，照抄即可。
+
+### 3. App 侧接镜像
+
+- `update/UpdateManager.kt`：
+  - 新增 `ReleaseSource(label, base, api)` 与来源列表 `sourcesFor()`：
+    **配了 NAS 就先试 NAS，失败自动回退 GitHub**，下载 URL 用命中的那个来源；
+  - 新增 `normalizeMirrorBase()`（纯函数、可单测）：接受 `192.168.1.10:8088`
+    这种裸主机，自动补 `http://`；带路径或查询串的一律判为非法（宁可不启用镜像，
+    也不产生坏 URL）；
+  - 镜像探测节流 `mirrorProbeDue` / `MIRROR_PROBE_INTERVAL_MS = 30 分钟`：
+    NAS 不可用（电视不在家）时只多花一次超时，不会每次检查都等；
+  - `releaseDownloadUrl(tag, apkName, base)`、`tagFromReleaseLocation(location, base)`、
+    `requireTrustedReleaseUrl(value, base)` 都加了 base 参数，默认仍是 GitHub，
+    **原有安全校验（必须是本项目 release 路径、host 必须匹配、GitHub 必须 https）不变**。
+  - 地址来源：`BuildConfig.MIRROR_BASE_URL`（构建期 `-PhazixMirrorBase=…` 写入，
+    默认空 + 空字符串支持）或运行期 `update_mirror` SharedPreferences，
+    **不写死任何地址**，没配就完全走 GitHub。
+- `AndroidManifest.xml` + 新增 `res/xml/network_security_config.xml`：
+  `usesCleartextTraffic` 仍是 false，只对 RFC1918 私有网段 / `.local` / Tailscale 网段
+  放行明文 http——否则 NAS 的 `http://192.168.x.x:8088` 在 Android 9+ 上会被直接掐断。
+- `nativeapp/build.gradle.kts`：新增 `buildConfigField MIRROR_BASE_URL`。
+- `nativeapp/src/test/.../UpdateManagerTest.kt`：新增 4 条纯函数单测
+  （镜像地址规整、镜像下载 URL、镜像重定向只认配置的 host、默认仍是 GitHub）。
+
+### 4. 验证状态
+
+- 本机（`/tmp/hazix`，纯 ASCII 路径）编译 + 单测结果见下一节；
+- NAS 中转站：本机实测通过（上面那张表）；
+- **未验证**：真机上的完整升级链路（NAS → 下载 → 签名校验 → 系统安装器），
+  这台 Mac 没有可用安卓设备（`adb devices` 为空），必须在用户电视上确认。

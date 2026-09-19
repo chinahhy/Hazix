@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is allowed only for the home LAN, because the optional NAS
+  release mirror (see tools/nas-release-proxy.mjs) is reached at a private
+  address such as http://192.168.1.10:8088/. Everything else, including GitHub,
+  must still use HTTPS: this file replaces the old blanket
+  android:usesCleartextTraffic="false" instead of opening the whole app up.
+
+  Add the NAS domain here as well if it is reached by name rather than by IP.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- RFC1918 private ranges. -->
+        <domain includeSubdomains="true">10.0.0.0/8</domain>
+        <domain includeSubdomains="true">172.16.0.0/12</domain>
+        <domain includeSubdomains="true">192.168.0.0/16</domain>
+        <!-- mDNS names like nas.local, and Tailscale's CGNAT range. -->
+        <domain includeSubdomains="true">local</domain>
+        <domain includeSubdomains="true">100.64.0.0/10</domain>
+    </domain-config>
+</network-security-config>

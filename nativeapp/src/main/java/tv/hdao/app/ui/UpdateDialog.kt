@@ -76,7 +76,13 @@ fun UpdateCoordinator(updateViewModel: UpdateViewModel) {
         pendingRelease = null
     }
 
-    LaunchedEffect(Unit) { updateViewModel.check() }
+    // Background check on launch. The delay lets the TV finish bringing its
+    // network up: a check that runs before Wi-Fi/Ethernet is ready fails, and the
+    // view model would then wait out the retry interval for nothing.
+    LaunchedEffect(Unit) {
+        delay(UPDATE_CHECK_DELAY_MS)
+        updateViewModel.check()
+    }
 
     fun requestInstall(release: UpdateRelease, apk: File) {
         try {
@@ -97,25 +103,13 @@ fun UpdateCoordinator(updateViewModel: UpdateViewModel) {
 
     when (val current = state) {
         UpdateUiState.Hidden -> Unit
-        is UpdateUiState.Checking -> if (current.manual) {
-            UpdatePrompt(
-                title = "正在检查更新",
-                message = "正在连接发布服务器，请稍候…",
-                onConfirm = null,
-                onDismiss = {},
-            )
-        }
-        is UpdateUiState.UpToDate -> UpdatePrompt(
-            title = "已经是最新版本",
-            message = "当前安装的是 v${current.version}，暂时没有更新的版本。",
-            confirmLabel = "知道了",
-            onConfirm = updateViewModel::dismiss,
-            onDismiss = updateViewModel::dismiss,
-        )
+        // The check runs in the background; only a download the user started is
+        // worth showing progress for, so Checking renders nothing.
+        is UpdateUiState.Checking -> Unit
         is UpdateUiState.Available -> UpdatePrompt(
             title = "发现新版本 v${current.release.version}",
             message = current.release.notes.ifBlank { "新版本已经准备好，可以直接在电视上下载。" },
-            confirmLabel = "下载更新",
+            confirmLabel = "立即更新",
             dismissLabel = "稍后",
             onConfirm = { updateViewModel.download(current.release) },
             onDismiss = updateViewModel::dismiss,
@@ -141,7 +135,7 @@ fun UpdateCoordinator(updateViewModel: UpdateViewModel) {
             confirmLabel = "重试",
             dismissLabel = "关闭",
             onConfirm = {
-                current.release?.let(updateViewModel::download) ?: updateViewModel.check(manual = true)
+                current.release?.let(updateViewModel::download) ?: updateViewModel.check(force = true)
             },
             onDismiss = updateViewModel::dismiss,
         )
@@ -216,3 +210,10 @@ private fun UpdatePrompt(
         textContentColor = Color.White,
     )
 }
+
+/**
+ * Waits before the launch check so the TV can finish bringing up its network.
+ * A check that runs first would fail, and the view model would then sit out the
+ * retry interval for nothing.
+ */
+private const val UPDATE_CHECK_DELAY_MS = 5L * 60L * 1000L

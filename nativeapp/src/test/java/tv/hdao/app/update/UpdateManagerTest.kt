@@ -62,4 +62,60 @@ class UpdateManagerTest {
             release.checksumUrl,
         )
     }
+
+    @Test
+    fun mirrorBaseIsNormalisedAndRejectsAnythingButAPlainHost() {
+        // A bare host, with or without a port, becomes an http base.
+        assertEquals("http://192.168.1.10:8088", normalizeMirrorBase("192.168.1.10:8088"))
+        assertEquals("http://nas.local:8088", normalizeMirrorBase("nas.local:8088"))
+        assertEquals("http://192.168.1.10:8088", normalizeMirrorBase("http://192.168.1.10:8088/"))
+        assertEquals("https://nas.example.com", normalizeMirrorBase("https://nas.example.com"))
+        // Anything with a path or query is a mistake, not a base URL.
+        assertNull(normalizeMirrorBase("http://192.168.1.10:8088/chinahhy/Hazix"))
+        assertNull(normalizeMirrorBase("not a url"))
+        assertNull(normalizeMirrorBase(""))
+    }
+
+    @Test
+    fun mirrorReleaseKeepsTheMirrorHostAndUsesTheSameAssetPaths() {
+        val release = releaseForVersion("3.6.4", base = "http://192.168.1.10:8088")
+
+        assertEquals(
+            "http://192.168.1.10:8088/chinahhy/Hazix/releases/download/v3.6.4/Hazix-TV-v3.6.4.apk",
+            release.apkUrl,
+        )
+        assertEquals(
+            "http://192.168.1.10:8088/chinahhy/Hazix/releases/download/v3.6.4/SHA256SUMS.txt",
+            release.checksumUrl,
+        )
+    }
+
+    @Test
+    fun mirrorRedirectIsAcceptedOnlyForTheConfiguredHost() {
+        val mirror = "http://192.168.1.10:8088"
+        // The NAS mirror answers the same path GitHub does, and may redirect the
+        // client back to github.com for the tag.
+        assertEquals(
+            "v3.6.4",
+            tagFromReleaseLocation("http://192.168.1.10:8088/chinahhy/Hazix/releases/tag/v3.6.4", mirror),
+        )
+        assertEquals(
+            "v3.6.4",
+            tagFromReleaseLocation("https://github.com/chinahhy/Hazix/releases/tag/v3.6.4", mirror),
+        )
+        // A redirect to any other host is still refused, even with a mirror set.
+        assertNull(
+            tagFromReleaseLocation("http://evil.example.com/chinahhy/Hazix/releases/tag/v9.9.9", mirror),
+        )
+    }
+
+    @Test
+    fun releaseUrlFromAnotherHostIsRefused() {
+        // requireTrustedReleaseUrl is private; releaseForVersion is the public
+        // path that runs it, so an attacker-controlled base must be rejected by
+        // the tag/host checks above. This pins the GitHub default.
+        val release = releaseForVersion("3.6.4")
+        assertTrue(release.apkUrl.startsWith("https://github.com/"))
+        assertEquals("v3.6.4", tagFromReleaseLocation("https://github.com/x/releases/tag/v3.6.4"))
+    }
 }

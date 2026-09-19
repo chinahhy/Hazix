@@ -194,3 +194,23 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "Hazix ${TAG}" \
             --notes-file release-notes.md
+
+      # Optional: pull the fresh release into the household's NAS mirror so the
+      # TV downloads it over the LAN instead of from GitHub. Configure the
+      # repository variable NAS_MIRROR_BASE (for example http://192.168.1.10:8088)
+      # to enable it. This never blocks a release: the mirror is a convenience,
+      # GitHub stays the source of truth (the client verifies SHA-256 either way).
+      - name: Warm the NAS mirror
+        if: ${{ vars.NAS_MIRROR_BASE != '' }}
+        continue-on-error: true
+        env:
+          MIRROR: ${{ vars.NAS_MIRROR_BASE }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -x
+          curl -fsS --max-time 120 -o /dev/null \
+            "${MIRROR}/chinahhy/Hazix/releases/download/v${VERSION}/Hazix-TV-v${VERSION}.apk" || true
+          curl -fsS --max-time 120 -o /dev/null \
+            "${MIRROR}/chinahhy/Hazix/releases/download/v${VERSION}/Hazix-Mobile-v${VERSION}.apk" || true
+          curl -fsS --max-time 120 -o /dev/null \
+            "${MIRROR}/chinahhy/Hazix/releases/download/v${VERSION}/SHA256SUMS.txt" || true

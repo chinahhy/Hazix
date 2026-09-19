@@ -77,7 +77,6 @@ private data class NavigationSpec(
 fun TopNavigation(
     selected: String,
     onSelect: (String, String) -> Unit,
-    onCheckUpdate: () -> Unit,
     contentFocusRequester: FocusRequester,
     selectedFocusRequester: FocusRequester,
     modifier: Modifier = Modifier,
@@ -118,15 +117,9 @@ fun TopNavigation(
             Spacer(Modifier.width(4.dp))
         }
         Spacer(Modifier.weight(1f))
-        // Manual update entry. The automatic check on launch only reacts when a
-        // newer release exists, so without this the feature had no visible entry.
-        TopNavigationItem(
-            item = NavigationSpec("update", "检查更新", "检查更新", Icons.Rounded.Refresh),
-            selected = false,
-            onClick = onCheckUpdate,
-            contentFocusRequester = contentFocusRequester,
-        )
-        Spacer(Modifier.width(10.dp))
+        // There is deliberately no "check for updates" entry any more: the check
+        // runs as a background task on launch and only appears when a newer
+        // release exists, with an "update now / later" choice.
         TopNavigationIconItem(
             icon = Icons.Rounded.Search,
             label = "搜索",
