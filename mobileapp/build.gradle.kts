@@ -87,10 +87,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps")
 
-    implementation("androidx.media3:media3-exoplayer:1.6.0")
-    implementation("androidx.media3:media3-exoplayer-hls:1.6.0")
-    implementation("androidx.media3:media3-datasource-okhttp:1.6.0")
-    implementation("androidx.media3:media3-ui:1.6.0")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
+    implementation("androidx.media3:media3-ui:1.11.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
