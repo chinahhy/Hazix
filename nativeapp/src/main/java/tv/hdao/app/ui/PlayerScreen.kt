@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,15 +44,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.ui.PlayerView
+import kotlin.math.abs
 import kotlinx.coroutines.delay
 import tv.hdao.app.data.Episode
 import tv.hdao.app.data.HdaoRepository
@@ -119,11 +124,55 @@ private fun NativePlayer(
     var playbackError by remember { mutableStateOf<String?>(null) }
     var controlsTick by remember { mutableIntStateOf(1) }
     var controlsVisible by remember { mutableStateOf(true) }
+    // Subtitle / audio track / playback speed panel.
+    var settingsVisible by remember { mutableStateOf(false) }
+    var settingsRow by remember { mutableIntStateOf(0) }
+    var playbackSpeed by remember { mutableFloatStateOf(1f) }
+    var tracksVersion by remember { mutableIntStateOf(0) }
     val focusRequester = remember { FocusRequester() }
 
     fun showControls() {
         controlsTick++
         controlsVisible = true
+    }
+
+    fun applyTrack(option: TrackOption, type: Int) {
+        val builder = player.trackSelectionParameters.buildUpon()
+        val group = option.group
+        if (group == null) {
+            builder.setTrackTypeDisabled(type, true)
+            builder.clearOverridesOfType(type)
+        } else {
+            builder.setTrackTypeDisabled(type, false)
+            builder.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, option.trackIndex))
+        }
+        player.trackSelectionParameters = builder.build()
+    }
+
+    /** Cycles the row currently selected in the settings panel. */
+    fun adjustSetting(direction: Int) {
+        when (settingsRow) {
+            0 -> {
+                val options = player.currentTracks.textOptions()
+                if (options.isEmpty()) return
+                val current = player.currentTracks.selectedTextIndex()
+                applyTrack(options[(current + direction).mod(options.size)], C.TRACK_TYPE_TEXT)
+            }
+            1 -> {
+                val options = player.currentTracks.audioOptions()
+                if (options.isEmpty()) return
+                val current = player.currentTracks.selectedAudioIndex().coerceAtLeast(0)
+                applyTrack(options[(current + direction).mod(options.size)], C.TRACK_TYPE_AUDIO)
+            }
+            else -> {
+                val found = SPEED_STEPS.indexOfFirst { abs(it.first - player.playbackParameters.speed) < 0.02f }
+                val current = if (found < 0) SPEED_STEPS.indexOfFirst { it.first == 1f } else found
+                playbackSpeed = SPEED_STEPS[(current + direction).coerceIn(0, SPEED_STEPS.lastIndex)].first
+                player.setPlaybackSpeed(playbackSpeed)
+            }
+        }
+        tracksVersion++
+        showControls()
     }
 
     fun saveProgress(
@@ -176,6 +225,7 @@ private fun NativePlayer(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(value: Boolean) { isPlaying = value }
+            override fun onTracksChanged(tracks: Tracks) { tracksVersion++ }
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_ENDED && activeEpisodeIndex < episodes.lastIndex) {
@@ -210,38 +260,80 @@ private fun NativePlayer(
     // (anime episodes are the reported case) left the progress bar on screen
     // forever. Now the countdown starts when playback actually starts, and it
     // never hides while the player is paused or buffering.
-    LaunchedEffect(controlsTick, isPlaying) {
-        if (!isPlaying) return@LaunchedEffect
+    LaunchedEffect(controlsTick, isPlaying, settingsVisible) {
+        // Never hide while paused, buffering, or while the settings panel is open.
+        if (!isPlaying || settingsVisible) return@LaunchedEffect
         delay(4_500L)
         controlsVisible = false
     }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
-    BackHandler(onBack = onBack)
+    BackHandler {
+        // Back closes the settings panel before it leaves the player.
+        if (settingsVisible) settingsVisible = false else onBack()
+    }
 
     Box(
         Modifier.fillMaxSize().background(Color.Black)
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 if (event.nativeKeyEvent.action != KeyEvent.ACTION_DOWN) return@onPreviewKeyEvent false
+                val repeat = event.nativeKeyEvent.repeatCount
                 when (event.nativeKeyEvent.keyCode) {
+                    KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS,
+                    KeyEvent.KEYCODE_TV_CONTENTS_MENU, KeyEvent.KEYCODE_BUTTON_Y,
+                    KeyEvent.KEYCODE_PROG_BLUE -> {
+                        settingsVisible = !settingsVisible
+                        settingsRow = 0
+                        showControls(); true
+                    }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_SPACE -> {
-                        if (player.isPlaying) player.pause() else player.play()
+                        when {
+                            // Holding OK also opens the panel, so remotes without a
+                            // menu key can still reach subtitle and audio settings.
+                            repeat >= 1 -> {
+                                if (!settingsVisible) {
+                                    settingsVisible = true
+                                    settingsRow = 0
+                                }
+                            }
+                            settingsVisible -> adjustSetting(1)
+                            player.isPlaying -> player.pause()
+                            else -> player.play()
+                        }
                         showControls(); true
                     }
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                        player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L)); showControls(); true
+                        if (settingsVisible) {
+                            adjustSetting(-1)
+                        } else {
+                            player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                        }
+                        showControls(); true
                     }
                     KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                        player.seekTo(player.currentPosition + 10_000L); showControls(); true
+                        if (settingsVisible) {
+                            adjustSetting(1)
+                        } else {
+                            player.seekTo(player.currentPosition + 10_000L)
+                        }
+                        showControls(); true
                     }
                     KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
-                        if (episodeIndex < episodes.lastIndex) playEpisode(episodeIndex + 1)
+                        if (settingsVisible) {
+                            settingsRow = (settingsRow + 2).mod(3)
+                        } else if (episodeIndex < episodes.lastIndex) {
+                            playEpisode(episodeIndex + 1)
+                        }
                         showControls(); true
                     }
                     KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
-                        if (episodeIndex > 0) playEpisode(episodeIndex - 1)
+                        if (settingsVisible) {
+                            settingsRow = (settingsRow + 1).mod(3)
+                        } else if (episodeIndex > 0) {
+                            playEpisode(episodeIndex - 1)
+                        }
                         showControls(); true
                     }
                     else -> false
@@ -274,7 +366,11 @@ private fun NativePlayer(
                         Spacer(Modifier.width(18.dp))
                         Column {
                             Text(detail.item.title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                            Text("${episode.name}  ·  左右快退/快进  ·  上下切换集数", color = Color(0xFFCED2D9), fontSize = 14.sp)
+                            Text(
+                                "${episode.name}  ·  左右快退/快进  ·  上下切换集数  ·  长按 OK 或菜单键：字幕/音轨/倍速",
+                                color = Color(0xFFCED2D9),
+                                fontSize = 14.sp,
+                            )
                         }
                         Spacer(Modifier.weight(1f))
                         Text("${formatTime(position)} / ${formatTime(duration)}", color = Color.White, fontSize = 15.sp)
@@ -286,6 +382,17 @@ private fun NativePlayer(
                     }
                 }
             }
+        }
+
+        if (settingsVisible) {
+            // Keyed on tracksVersion so the panel follows Player.Listener.onTracksChanged.
+            val currentTracks = remember(tracksVersion, settingsVisible) { player.currentTracks }
+            PlayerSettingsPanel(
+                tracks = currentTracks,
+                focusedRow = settingsRow,
+                speed = playbackSpeed,
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 58.dp),
+            )
         }
 
         playbackError?.let {
