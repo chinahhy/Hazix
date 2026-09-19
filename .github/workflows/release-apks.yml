@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-tv-${{ github.ref }}-${{ inputs.version }}
+  group: release-apks-${{ github.ref }}-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
