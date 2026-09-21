@@ -4,6 +4,27 @@
 [GitHub Releases](https://github.com/chinahhy/Hazix/releases) 上；本地副本归档在 `dist/`，
 校验值记录在 `dist/SHA256SUMS.txt`。
 
+## 3.7.2 — 2026-09-21
+
+- **修复局域网镜像实际上被 Android 拦掉**（v3.7.0/3.7.1 的镜像一直没生效）：
+  `network_security_config.xml` 把 RFC1918 与 Tailscale 网段写进了 `<domain>`，而 Android 只按
+  **字面主机名**匹配（精确相等，或以 `.<domain>` 结尾），根本没有网段概念——`10.0.0.0/8` 永远匹配
+  不到 `10.0.0.104`，明文请求于是落到 `base-config` 的 `false`，镜像在建连之前就被拒。
+  更糟的是**失败完全静默**：更新检查会回退 GitHub，最终报出来的错误永远是 GitHub 的，
+  所以 v3.7.1 的"NAS 中转"看上去是配好了的。现在白名单只列真实使用的主机（`10.0.0.104` 与
+  `.local`），地址被拒时 `UpdateManager` 会写一条 `Log.w`（tag `HazixUpdate`），
+  不再伪装成"NAS 没开"。
+- **补上防复发的守卫测试**：单元测试会解析随包发布的 `network_security_config.xml`，拒绝任何不是
+  纯主机名的 `<domain>`，并断言 CI 烧进包里的中转站地址一定在白名单内。`ci.yml` 的单测步骤与
+  发版流水线都带上 `-PhazixMirrorBase` 跑这条测试，否则它没有可断言的对象。
+- **浏览器预览**（`web/`，不随本 APK 发布）：修好顶栏「检查更新」。`APP_VERSION` /
+  `RELEASES_PAGE` / `isNewer` 在一次脚本化删除里被误删，点按钮会抛 `ReferenceError`、弹窗不出现。
+  版本判定与弹窗内容现在放在 `web/public/update.js`（被单测覆盖），预览的"当前版本"改从
+  `CHANGELOG.md` 顶部读取，不再手抄（此前停在 3.6.4，而产品已经发到 3.7.1）。
+- **安装提示（更正 3.7.1 的说法）**：3.7.1 写的是"最后一个需要手动安装的版本"，这句话不成立——
+  那一版要走的 NAS 镜像正被上面那个 bug 挡着。所以如果你现在装的是 v3.7.0/3.7.1，且电视所在网络
+  到不了 GitHub，**这一版仍然需要手动安装一次**；装上之后，应用内更新才会真正走通局域网镜像。
+
 ## 3.7.1 — 2026-09-19
 
 - **修复 v3.7.0 漏掉的构建配置**：仓库变量 `NAS_MIRROR_BASE` 在 3.7.0 构建时尚未设置，
