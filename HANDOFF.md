@@ -904,3 +904,11 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
   versionCode `3007002`。`apksigner verify --min-sdk-version 23`：两包 v1/v2 签名均有效，证书
   SHA-256 均为既有升级链 `6f4c4390…f9f1`。
 - 仍需真机验证首页首焦点、遥控器切卡、HLS 中段 seek 与首帧耗时；构建验证不能替代电视现场体验。
+
+## 2026-09-22 · Codex：首页海报行下移
+
+- 用户的 v3.7.2 真机照片显示：放大后的「最近热播」海报行向上侵入了左侧简介与操作按钮区。
+- 根因是海报从 `112×158dp` 放大到 `132×186dp`、聚焦缩放提到 `1.10`，但 `HomePosterCarousel` 容器仍是 `560dp`。
+- `nativeapp/.../ui/Screens.kt`：将首页 hero 高度增加到 `600dp`；上方文案保持原位，底部对齐的标题与海报行整体下移 `40dp`，同时给 `1.10` 聚焦外扩留出余量。
+- 验证：ASCII 沙箱中 `:nativeapp:testDebugUnitTest :nativeapp:lintRelease` 构建成功，30 tests / 0 failures，lint 0 error；网页基线 `pnpm run check && pnpm test` 通过，15 tests / 0 failures。
+- 本轮只修源码，不打 APK、不发版；真机视觉间距需要下一个 APK 安装后确认。

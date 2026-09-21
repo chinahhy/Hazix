@@ -314,7 +314,10 @@ private fun HomePosterCarousel(
         }.getOrNull()
     }
 
-    Box(Modifier.fillMaxWidth().height(560.dp)) {
+    // The home posters were enlarged by 28dp and now scale to 1.10 while
+    // focused. Give the hero that extra visual height so the bottom-anchored
+    // rail sits below the synopsis/actions instead of growing back into them.
+    Box(Modifier.fillMaxWidth().height(600.dp)) {
         Crossfade(
             targetState = selectedVod,
             animationSpec = tween(420),
