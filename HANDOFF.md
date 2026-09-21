@@ -929,3 +929,13 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - `nativeapp/.../ui/Screens.kt`：`HomePosterCarousel` 高度从 `600dp` 增至 `664dp`，左侧详情保持不动，底部对齐的「最近热播」和整排卡片再下移 `64dp = 96px`。预期首张海报为 `y=587..894px`，仍完整落在 1080p 视口内。
 - 为真机验收构建的 debug APK 已成功，但 TCL 系统返回 `install apk has be disabled from pm by system default`，未安装、未留下 debug 应用；没有擅自修改电视的 ADB 安装安全开关。
 - ASCII 沙箱验证：`:nativeapp:assembleDebug`、`:nativeapp:testDebugUnitTest`、`:nativeapp:lintRelease` 全部通过，30 tests / 0 failures，lint 0 error。本轮未改 `CHANGELOG.md`、未打正式 APK、未提交或发版。
+
+## 2026-09-22 · Codex：发布 v3.7.4
+
+- TCL 真机坐标校准的海报下移修复与 `CHANGELOG.md` 提交为 `44aa9cb`，已推送 `main`；标签 `v3.7.4` 指向该提交。
+- GitHub Release：<https://github.com/chinahhy/Hazix/releases/tag/v3.7.4>；正式签名流水线已产出 TV 与手机两个 APK。
+- 两包已归档到 `dist/`，未覆盖或删除旧版：TV 2,833,977 字节，SHA-256 `9718f2cd0fc78422e67d7fb5f36b9f93e055866c9694b8c61f1439a5fa8d8372`；手机 2,764,468 字节，SHA-256 `28553aabea8cd246cab34e91ec640da1cffadef24d9206edb68cb7dd00400c52`。
+- `aapt dump badging`：TV 为 `tv.hdao.app`、手机为 `tv.hdao.mobile`，均为 versionName `3.7.4` / versionCode `3007004`。
+- `apksigner verify --min-sdk-version 23`：两包 v1/v2 签名均有效，证书 SHA-256 为既有升级链 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`。
+- NAS 中转站 `/releases/latest` 已返回 `X-Hazix-Tag: v3.7.4`；TV 包 Range 请求返回 `206` 且总大小 2,833,977 字节。
+- 待用户在 TCL 真机安装后确认首张海报是否落在预期的 `y=587..894px`。
