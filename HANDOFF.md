@@ -888,3 +888,19 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
   **BUILD SUCCESSFUL**；30 tests / 0 failures，lint 0 error（既有 warning 保留）。
 - **未验证**：真实电视上的焦点框尺寸、遥控器切卡手感、首帧耗时与 HLS seek 兼容性。没有可用
   Android 设备；发版前仍需 TV 真机确认。根目录未跟踪的 `Hazix-TV-v3.7.1.apk` 原样保留。
+
+## 2026-09-22 · Codex：发布 v3.7.2
+
+- 首页首卡聚焦、高清 hero 与中段静音预览改动提交为 `350b8c8`，推送 `main` 后 CI #54 三项任务
+  全部成功：Web checks、Android tests and lint、Build TV and mobile APKs。
+- 标签 `v3.7.2` 指向 `350b8c8`；GitHub Release 已发布：
+  <https://github.com/chinahhy/Hazix/releases/tag/v3.7.2>。
+- Release 含 `Hazix-TV-v3.7.2.apk`、`Hazix-Mobile-v3.7.2.apk`、`SHA256SUMS.txt`；两个 APK
+  已下载归档到 `dist/`，没有覆盖或删除任何旧版本。
+- 云端校验文件与本地字节一致：TV SHA-256
+  `a802a3d02d42a2edeaea2ac9db3dbc0fe038aca0c93fceb61bbaa18ad888c209`；手机 SHA-256
+  `57cf9fa0caabed19cf3752a5f753b9cd310a170664df4ae46b32108cc645e328`。
+- `aapt dump badging`：TV 为 `tv.hdao.app`、手机为 `tv.hdao.mobile`，均为 versionName `3.7.2`、
+  versionCode `3007002`。`apksigner verify --min-sdk-version 23`：两包 v1/v2 签名均有效，证书
+  SHA-256 均为既有升级链 `6f4c4390…f9f1`。
+- 仍需真机验证首页首焦点、遥控器切卡、HLS 中段 seek 与首帧耗时；构建验证不能替代电视现场体验。
