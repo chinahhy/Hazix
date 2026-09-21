@@ -731,3 +731,120 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.githu
 ```
 
 以后需要动仓库配置时，可以复用这条路径（比修 `gh` 的登录快）。注意：**token 不要打印到日志里**。
+
+## 2026-09-21 · DSH 接手轮次（修 v3.7.1 的两个静默回归）
+
+用户让 Codex 复核 v3.7.0/3.7.1 的几轮改动，然后要 DSH 判断 Codex 的结论。
+**本轮只改源码与 CI 配置：没有打 APK、没有发版、没有推送、没有动 CHANGELOG 的版本号。**
+提交信息：`fix(update): restore the preview's version gate and the LAN mirror's cleartext whitelist`。
+
+### 1. Codex 的两条结论：都成立，但有一条归因错了
+
+| Codex 的结论 | 复核 |
+| --- | --- |
+| TV 把 CIDR 写进 `<domain>`，NAS 明文镜像会被 Android 拦掉 | 成立，**范围比他说的更大**：5 条里 4 条无效 |
+| 网页「检查更新」抛 `ReferenceError: APP_VERSION is not defined` | 成立 |
+
+**归因修正**：Codex 说是 Netflix 视觉重构（`ceaa231`）误删的。git 的实际顺序是
+`ceaa231`（重构）→ `1cb3a43`（**新增**版本三件套）→ `6b11d6a`（**删除**它们）。
+`6b11d6a` 的 message 自己写着 "restores the icon() helper that a scripted deletion took out"——
+同一次脚本化删除删了两批东西：`icon()` 补回来了，`APP_VERSION`/`RELEASES_PAGE`/`isNewer` 没有。
+病因是「脚本化批量删除 + 没有回归网」，不是某次重构手滑。这一点决定了修法：要让「删掉」这件事
+在加载时就炸，而不是等用户点按钮。
+
+### 2. 复核用的证据（都可复现）
+
+- 从**已发布的包**里解出 NSC，不是读源码猜的：
+  `aapt2 dump xmltree dist/Hazix-TV-v3.7.1.apk --file res/8G.xml` → `T: '10.0.0.0/8'` 等
+  CIDR 原样编进包里（资源名被 R8 混淆成 `res/8G.xml`，用 `dump xmltree` 挨个看才找得到）。
+- 平台语义：AOSP `ApplicationConfig.getConfigForHostname` 只有
+  `domain.hostname.equals(hostname)` 与 `hostname.endsWith("." + domain)` 两种匹配，
+  **没有网段概念**，所以 `10.0.0.104` 永远不会命中 `10.0.0.0/8`，落到 base-config 的 false，
+  OkHttp 在建连前就抛 cleartext 异常。
+  <https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/security/net/config/ApplicationConfig.java>
+- 网页侧把服务真跑起来抓字节：`app.html` 注入 `window.__HDAO_VERSION__="3.6.4"`，
+  而 `app.js` 里 `APP_VERSION` 引用 5 处、定义 0 处。
+- 顺手确认 **手机包不用动**：`Hazix-Mobile-v3.7.1.apk` 的 dex 里既没有 `10.0.0.104:18088`
+  也没有 `update_mirror`（mobileapp 只编译 nativeapp 的 `data` 包，没有更新模块），
+  播放走 `https://stream.hdao.tv/...`，所以白名单与它无关。修复面只有 TV 一个模块。
+
+### 3. 本轮改动
+
+| 问题 | 改动文件 |
+| --- | --- |
+| 网页版本三件套被删 | 新增 `web/public/update.js`（判定 + 弹窗内容）、`web/test/update.test.mjs`、`web/test/preview.test.mjs`；`web/public/app.js` 只留取数与塞 DOM |
+| 预览版本号漂移（手抄 `3.6.4`） | `web/server.mjs` 改成从 `CHANGELOG.md` 顶部读，并导出 `server`/`versionFromChangelog` 供测试 |
+| 新模块会漏检 | `web/package.json` 的 `check` 改成 `for file in public/*.js`，新模块自动纳入 |
+| Android 明文白名单是死配置 | `nativeapp/src/main/res/xml/network_security_config.xml`：删掉 4 条 CIDR，改成精确主机 `10.0.0.104` + `local` |
+| 镜像被明文策略拦住却完全无声 | `nativeapp/.../update/UpdateManager.kt`：新增 `cleartextBlockedReason()`，`mirrorSettings()` 命中时写一条 `Log.w`（tag `HazixUpdate`） |
+| 缺回归网 | `UpdateManagerTest.kt` 新增 3 条；`ci.yml` 单测步骤带上 `-PhazixMirrorBase`；`release-apks.yml` 的构建命令加 `:nativeapp:testDebugUnitTest` |
+
+关于 CI 接线：新测试只在 `BuildConfig.MIRROR_BASE_URL` 非空时断言，而
+`ci.yml` 原本跑单测时**没有**传 `-PhazixMirrorBase`、`release-apks.yml` 传了却**不跑单测**，
+所以两处都补上了——否则这条守卫是摆设。
+
+### 4. 验证命令与真实结果
+
+- 网页静态检查：`pnpm run check` 等价命令 → **check OK**。
+- 网页单测：`node --test test/*.test.mjs` → **14 passed / 0 failed**（原 9 条）。
+- 网页真实浏览器（headless Chrome + CDP，脚本驱动，不是只读代码）：
+  导航 `http://127.0.0.1:4173/app.html`，点 `[data-update]` →
+  注入版本 `3.7.1`；400ms 后弹窗「当前版本 v3.7.1，正在查询最新版本…」，
+  10s 后「已是最新版本 / 当前版本 v3.7.1，无需更新。 / 知道了」，
+  **console error 与 exception 均为 0**（修复前同一路径抛 `ReferenceError`）。截图存于
+  `/tmp/hdao-update-dialog.png`。
+- Android 单测（本轮新打通本地编译，见第 5 节）：
+  `./gradlew --offline :nativeapp:testDebugUnitTest -PhazixMirrorBase=http://10.0.0.104:18088`
+  → **BUILD SUCCESSFUL**，28 tests / 0 failures（`UpdateManagerTest` 从 9 条变 12 条）。
+- **反向验证（证明守卫真的会响）**：把 v3.7.1 那份 CIDR 配置放回沙箱再跑，两条新测试都 **FAILED**：
+  - `bakedMirrorAddressIsWhitelistedForCleartext` →「构建烧进了明文中转站 10.0.0.104，但它不在
+    network_security_config.xml 里：Android 会拒绝明文连接，局域网镜像静默失效（v3.7.1 的回归）」
+  - `cleartextHostsAreWhitelistedAsPlainHostnames` →「10.0.0.0/8 不是主机名：`<domain>` 不支持网段、端口或协议」
+  恢复配置后重新跑回 green。
+- Android Lint：`./gradlew --offline :nativeapp:lintRelease` → **BUILD SUCCESSFUL**，
+  0 error；14 条 warning 全部是既有的（`InlinedApi` 在第 57/359 行等），新增代码没有引入任何一条。
+
+### 5. 重要环境发现：本地可以编译改过的 Kotlin 了（推翻上一轮的结论）
+
+上一轮记的是「这台 Mac 上无法编译改过的 Kotlin 源码」。根因现在看清了：
+Kotlin 编译器收到的**每一个**绝对路径里的非 ASCII 字符都被转成 `uXXXX`（反斜杠被吃掉），
+`/Volumes/Data/ChatGPT项目文件/观影平台` → `/Volumes/Data/ChatGPTu9879u76EEu6587u4EF6/u89C2u5F71u5E73u53F0`，
+于是源码、`android.jar`、`R.jar`、插件 classpath 全部「不存在」。
+
+**只把 `GRADLE_USER_HOME` 换成 ASCII 路径不够**（那只解决插件 jar），源码与 SDK 路径同样被转义；
+**符号链接也没用**（Gradle 会解析回真实路径）。必须让整条链路都在 ASCII 路径上：
+
+```bash
+cd "/Volumes/Data/ChatGPT项目文件/观影平台"
+mkdir -p /tmp/hdao-src
+rsync -a --exclude '.tooling' --exclude dist --exclude .git --exclude build --exclude .gradle ./ /tmp/hdao-src/
+cp -R .tooling/gradle-home /tmp/hdao-gh                    # 1.8G
+cp -R .tooling/android-sdk  /tmp/hdao-sdk                  # 10G
+cp -R ".tooling/jdk/jdk-17.0.20.1+1/Contents/Home" /tmp/hdao-jdk
+
+cd /tmp/hdao-src
+export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/hdao-sdk
+./gradlew --offline :nativeapp:testDebugUnitTest -PhazixMirrorBase=http://10.0.0.104:18088
+./gradlew --offline :nativeapp:lintRelease
+```
+
+注意：改完源码要**重新 rsync 一次**再跑；`--offline` 下 `lintDebug` 会因 androidTest 的
+依赖没进本地缓存而失败（`kotlin-stdlib-jdk7:1.8.21`、`androidx.collection:collection-jvm:1.4.0`），
+用 `:nativeapp:lintRelease` 代替（与上一轮的经验一致）。这套沙箱是加密部署时一次性复制。
+
+### 6. 未验证 / 下一步
+
+- **真机未验证**：Android 明文白名单只在源码与单测层面验证过，**没有在 Android TV 9+ 真机上
+  抓包或看 logcat 确认 NAS 镜像真的走通了**。装机后应确认更新检查确实走了「NAS 中转站」。
+- **没有打 APK、没有发版**。`CHANGELOG.md` 仍停在 3.7.1：预览的版本号现在跟随 CHANGELOG 顶部，
+  提前写 3.7.2 会让预览谎报版本；发版时再补条目。
+- **部署死结（需要用户决策）**：如果那台电视真的到不了 GitHub，v3.7.1 无法通过应用内更新拿到
+  v3.7.2——它要走的镜像正被明文策略挡着。修 updater 的包送不进 updater，需要 U 盘/adb 手动装一次。
+- `update_mirror` 运行时可改，但 `network_security_config.xml` 是编译期静态的：换地址必须同时加
+  `<domain>` 条目，否则仍被拒（现在至少有 `Log.w` 与 CI 断言，不会再无声无息）。
+- **未处理（留作后续）**：NAS 上开 TLS、把自签证书钉进 `domain-config` 的 `<trust-anchors>`——
+  这是唯一既保持 `base-config cleartextTrafficPermitted="false"`、又能支持任意 LAN 地址的路子。
+- **现场发现，需用户确认**：仓库根目录出现未跟踪的 `Hazix-TV-v3.7.1.apk`（22:19 写入，与
+  `dist/Hazix-TV-v3.7.1.apk` 逐字节相同，sha256 `72ee110e…`）。**不是本轮 DSH 放的**，
+  很可能是 Codex 会话为了让文件可下载而复制出来的。按项目规则版本化 APK 只应留在 `dist/`，
+  本轮**没有删除**它，请确认后清理。

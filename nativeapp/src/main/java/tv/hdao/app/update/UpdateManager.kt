@@ -8,6 +8,8 @@ import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.security.NetworkSecurityPolicy
+import android.util.Log
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,6 +39,7 @@ private const val CHECKSUM_FILE_NAME = "SHA256SUMS.txt"
 private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
 private const val MAX_APK_BYTES = 100L * 1024L * 1024L
 private const val MAX_CHECKSUM_BYTES = 256L * 1024L
+private const val LOG_TAG = "HazixUpdate"
 
 /**
  * Flags for [PackageManager.getPackageArchiveInfo].
@@ -109,8 +112,16 @@ class UpdateManager(private val context: Context) {
         val base = stored?.trim()?.takeIf { it.isNotEmpty() }
             ?: BuildConfig.MIRROR_BASE_URL.trim().takeIf { it.isNotEmpty() }
             ?: return null
+        val normalized = normalizeMirrorBase(base) ?: return null
+        // A mirror on a host this build did not whitelist is refused by the
+        // platform before a socket is ever opened. Say so, instead of letting the
+        // mirror fail in a way that looks exactly like "the NAS is switched off"
+        // — which is how v3.7.1 stayed broken without anyone noticing.
+        cleartextBlockedReason(normalized) { host ->
+            NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(host)
+        }?.let { Log.w(LOG_TAG, it) }
         return MirrorSettings(
-            baseUrl = normalizeMirrorBase(base) ?: return null,
+            baseUrl = normalized,
             timeoutSeconds = MIRROR_TIMEOUT_SECONDS,
         )
     }
@@ -478,6 +489,26 @@ internal fun normalizeMirrorBase(raw: String): String? {
     val url = candidate.toHttpUrlOrNull() ?: return null
     if (url.encodedPath != "/") return null
     return candidate
+}
+
+/**
+ * Why a plain-http mirror will not be reachable, or null when it will be.
+ *
+ * The whitelist lives in `res/xml/network_security_config.xml` and is fixed at
+ * build time. Android matches those entries as literal hostnames — no ranges, no
+ * ports — and refuses cleartext to every other host, so a mirror address that is
+ * not listed there is dead on arrival. [permitted] is [NetworkSecurityPolicy] in
+ * production and a lambda under test, which keeps the rule unit-testable without
+ * an Android runtime.
+ */
+internal fun cleartextBlockedReason(base: String?, permitted: (String) -> Boolean): String? {
+    val url = base?.toHttpUrlOrNull() ?: return null
+    if (url.isHttps) return null
+    return if (permitted(url.host)) {
+        null
+    } else {
+        "局域网中转站 ${url.host} 不在本应用的明文白名单里（network_security_config.xml），Android 会拒绝明文连接"
+    }
 }
 
 internal fun releaseDownloadUrl(

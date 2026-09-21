@@ -1,10 +1,13 @@
 package tv.hdao.app.update
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.hdao.app.BuildConfig
+import java.io.File
 
 class UpdateManagerTest {
     @Test
@@ -117,5 +120,115 @@ class UpdateManagerTest {
         val release = releaseForVersion("3.6.4")
         assertTrue(release.apkUrl.startsWith("https://github.com/"))
         assertEquals("v3.6.4", tagFromReleaseLocation("https://github.com/x/releases/tag/v3.6.4"))
+    }
+
+    @Test
+    fun cleartextMirrorNamesTheHostThePlatformRefuses() {
+        // A blocked mirror has to name its host instead of looking like "the NAS
+        // is switched off", which is exactly how v3.7.1 hid its own breakage.
+        val blocked = requireNotNull(
+            cleartextBlockedReason("http://10.0.0.104:18088") { host -> host != "10.0.0.104" },
+        )
+        assertTrue(blocked, blocked.contains("10.0.0.104"))
+        assertTrue(blocked, blocked.contains("明文"))
+        assertNull(cleartextBlockedReason("http://10.0.0.104:18088") { host -> host == "10.0.0.104" })
+        // https never goes through the cleartext policy, and neither does an
+        // address that is missing or malformed.
+        assertNull(cleartextBlockedReason("https://nas.example.com") { false })
+        assertNull(cleartextBlockedReason(null) { false })
+        assertNull(cleartextBlockedReason("not a url") { false })
+    }
+
+    @Test
+    fun cleartextHostsAreWhitelistedAsPlainHostnames() {
+        val rules = cleartextDomainRules()
+        assertTrue("没有解析到任何 <domain>，这条测试本身失效了", rules.isNotEmpty())
+        for (rule in rules) {
+            // v3.7.1 wrote RFC1918 ranges and the Tailscale range here. Android
+            // matches <domain> as a literal hostname, so "10.0.0.0/8" can never
+            // match "10.0.0.104": the LAN mirror was refused as cleartext and
+            // nothing reported it.
+            assertFalse(
+                "${rule.hostname} 不是主机名：<domain> 不支持网段、端口或协议",
+                rule.hostname.contains('/') || rule.hostname.contains(':') ||
+                    rule.hostname.any { it.isWhitespace() },
+            )
+            assertTrue(
+                "${rule.hostname} 不是合法主机名",
+                rule.hostname.matches(Regex("[A-Za-z0-9][A-Za-z0-9.-]*")),
+            )
+        }
+    }
+
+    @Test
+    fun bakedMirrorAddressIsWhitelistedForCleartext() {
+        val base = BuildConfig.MIRROR_BASE_URL.trim()
+        // Only a build that actually baked an address has something to check.
+        // CI and the release job both pass -PhazixMirrorBase, so this runs for
+        // real on every push and on every tag that ships an APK.
+        if (base.isEmpty()) return
+        val url = requireNotNull(base.toHttpUrlOrNull()) { "MIRROR_BASE_URL 不是合法地址：$base" }
+        if (url.isHttps) return
+        val (baseCleartext, rules) = cleartextPolicy()
+        val permitted = baseCleartext || rules.any { rule ->
+            url.host == rule.hostname ||
+                (rule.includeSubdomains && url.host.endsWith(".${rule.hostname}"))
+        }
+        assertTrue(
+            "构建烧进了明文中转站 ${url.host}，但它不在 network_security_config.xml 里：" +
+                "Android 会拒绝明文连接，局域网镜像静默失效（v3.7.1 的回归）",
+            permitted,
+        )
+    }
+
+    /** A `<domain>` entry the way Android reads it: literal hostname, optional subdomains. */
+    private data class DomainRule(val hostname: String, val includeSubdomains: Boolean)
+
+    private fun cleartextDomainRules(): List<DomainRule> = cleartextPolicy().second
+
+    /**
+     * Parses whether the base policy allows cleartext, plus the rules of the
+     * domain-config block that allows it.
+     */
+    private fun parseNetworkSecurityConfig(text: String): Pair<Boolean, List<DomainRule>> {
+        val base = requireNotNull(
+            Regex("""<base-config[^>]*cleartextTrafficPermitted="?(true|false)""").find(text),
+        ) { "network_security_config.xml 缺少 base-config" }.groupValues[1]
+        val block = requireNotNull(
+            Regex(
+                """<domain-config[^>]*cleartextTrafficPermitted="true"[^>]*>(.*?)</domain-config>""",
+                RegexOption.DOT_MATCHES_ALL,
+            ).find(text),
+        ) { "network_security_config.xml 里没有放行明文的 domain-config" }
+        val rules = Regex("""<domain\b([^>]*)>([^<]*)</domain>""")
+            .findAll(block.groupValues[1])
+            .map { match ->
+                DomainRule(
+                    hostname = match.groupValues[2].trim(),
+                    includeSubdomains = match.groupValues[1].contains("includeSubdomains=\"true\""),
+                )
+            }
+            .toList()
+        return (base == "true") to rules
+    }
+
+    /**
+     * Reads the repository's network_security_config.xml. A unit test may run
+     * with the module directory or the repository root as its working directory,
+     * so search upwards instead of assuming one of them.
+     */
+    private fun cleartextPolicy(): Pair<Boolean, List<DomainRule>> {
+        var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        while (dir != null) {
+            for (relative in listOf(
+                "src/main/res/xml/network_security_config.xml",
+                "nativeapp/src/main/res/xml/network_security_config.xml",
+            )) {
+                val file = File(dir, relative)
+                if (file.isFile) return parseNetworkSecurityConfig(file.readText())
+            }
+            dir = dir.parentFile
+        }
+        throw AssertionError("找不到 nativeapp/src/main/res/xml/network_security_config.xml")
     }
 }

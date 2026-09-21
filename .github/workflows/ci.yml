@@ -59,8 +59,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # Bake the same mirror address the release job uses, so the check that
+          # the baked address is whitelisted for cleartext actually runs here
+          # (see UpdateManagerTest). Without it that test has nothing to assert.
           ./gradlew :nativeapp:testDebugUnitTest :mobileapp:testDebugUnitTest \
-            --no-daemon 2>&1 | tee gradle-unit-tests.log
+            --no-daemon -PhazixMirrorBase=${{ vars.NAS_MIRROR_BASE }} 2>&1 | tee gradle-unit-tests.log
       - name: Lint
         shell: bash
         run: |

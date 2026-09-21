@@ -6,11 +6,38 @@ import { Readable } from 'node:stream';
 
 const root = path.resolve(fileURLToPath(new URL('./public/', import.meta.url)));
 const hlsBundle = fileURLToPath(new URL('./node_modules/hls.js/dist/hls.min.js', import.meta.url));
+const changelogFile = fileURLToPath(new URL('../CHANGELOG.md', import.meta.url));
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || '127.0.0.1';
-// Kept in step with the released TV build; the preview's check-update entry and
-// the packaged app must report the same version or the comparison misleads.
-const APP_VERSION = process.env.HDAO_VERSION || '3.6.4';
+
+/**
+ * 从 CHANGELOG 顶部取当前发布版本，例如第一行 `## 3.7.1 — 2026-09-19` → `3.7.1`。
+ *
+ * 这里原来是一个手抄的字面量，等产品发到 3.7.1 时它还停在 3.6.4：预览会把
+ * 当前版本报小，于是「检查更新」对比出来的结论是错的。改用仓库里已经存在的
+ * 唯一版本台账（release-apks.yml 也是从 CHANGELOG 抽发布说明的）。
+ */
+export function versionFromChangelog(text) {
+  const match = String(text).match(/^##\s+(\d+\.\d+\.\d+)\b/m);
+  return match ? match[1] : null;
+}
+
+async function resolveAppVersion() {
+  if (process.env.HDAO_VERSION) return process.env.HDAO_VERSION;
+  try {
+    const fromChangelog = versionFromChangelog(await readFile(changelogFile, 'utf8'));
+    if (fromChangelog) return fromChangelog;
+    console.warn('[preview] CHANGELOG.md 里找不到版本号，预览无法正确比较版本');
+  } catch (error) {
+    console.warn(`[preview] 读不到 CHANGELOG.md（${error.code}），预览无法正确比较版本`);
+  }
+  // 读不到就退回 0.0.0：任何真实发布都比它新，宁可比出「有新版本」也不要谎报「已是最新」。
+  return '0.0.0';
+}
+
+let appVersionPromise;
+export const appVersion = () => (appVersionPromise ??= resolveAppVersion());
+
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const cache = new Map();
 const ratingCache = new Map();
@@ -96,7 +123,9 @@ export function apiTarget(url) {
   return target;
 }
 
-const server = http.createServer(async (req, res) => {
+// 导出是为了让 test/preview.test.mjs 能在随机端口上真跑一遍静态文件与版本注入，
+// 而不是只能对着源码做字符串断言。直接 `node server.mjs` 时才 listen。
+export const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   if (!['GET', 'HEAD'].includes(req.method)) return json(res, 405, { error: '仅支持读取请求' });
@@ -137,9 +166,10 @@ const server = http.createServer(async (req, res) => {
     let body = await readFile(file);
     // The preview mirrors the packaged app's version, so the check-update entry
     // has something real to compare against. Injected here instead of baked into
-    // the HTML so a running preview always reports the version in app.yaml.
+    // the HTML so a running preview always reports the version in CHANGELOG.md.
     if (path.basename(file) === 'app.html') {
-      body = Buffer.from(body.toString('utf8').replace('<!-- version -->', `<script>window.__HDAO_VERSION__=${JSON.stringify(APP_VERSION)}</script>`));
+      const version = await appVersion();
+      body = Buffer.from(body.toString('utf8').replace('<!-- version -->', `<script>window.__HDAO_VERSION__=${JSON.stringify(version)}</script>`));
     }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)], 'Cache-Control': 'no-cache' });
     res.end(req.method === 'HEAD' ? undefined : body);

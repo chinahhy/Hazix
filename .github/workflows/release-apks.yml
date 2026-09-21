@@ -117,6 +117,7 @@ jobs:
           HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
         run: >-
           ./gradlew
+          :nativeapp:testDebugUnitTest
           :nativeapp:lintRelease
           :nativeapp:assembleRelease
           :mobileapp:lintRelease

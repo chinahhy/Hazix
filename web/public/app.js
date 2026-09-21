@@ -1,5 +1,10 @@
 import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, categoryItems, recentProgress, playbackURL, isFeedbackKey } from './data.js';
 import { playMoveSound, playConfirmSound, playBackSound } from './sound.js';
+import { RELEASE_API, updateCheckingHTML, updateDialogHTML } from './update.js';
+
+// server.mjs 把 CHANGELOG 顶部的发布版本注入 app.html（见那里的 <!-- version -->）。
+// 预览里的「当前版本」必须和真正发出去的包一致，否则「检查更新」会给出误导结论。
+const APP_VERSION = String(window.__HDAO_VERSION__ || '');
 
 const content = document.querySelector('#content');
 const icons = {
@@ -160,19 +165,14 @@ function dialog(html) {
   document.querySelector('#dialog .dialog-card button:not(.dialog-close)')?.focus();
 }
 async function checkUpdate() {
-  dialog(`<h3>检查更新</h3><p>当前版本 <strong>v${esc(APP_VERSION)}</strong>，正在查询最新版本…</p>`);
+  dialog(updateCheckingHTML(APP_VERSION));
   let latest = null;
   try {
-    const response = await fetch(`https://api.github.com/repos/chinahhy/Hazix/releases/latest`, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/vnd.github+json' } });
+    const response = await fetch(RELEASE_API, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/vnd.github+json' } });
     if (response.ok) latest = (await response.json()).tag_name || null;
   } catch { latest = null; }
-  const body = latest
-    ? (isNewer(latest, APP_VERSION)
-      ? `<h3>发现新版本 v${esc(latest.replace(/^v/i, ''))}</h3><p>当前版本 v${esc(APP_VERSION)}。可以前往发布页下载并覆盖安装。</p><div class="dialog-actions"><a class="button primary" href="${RELEASES_PAGE}" target="_blank" rel="noreferrer">打开发布页</a><button class="button secondary" type="button" data-dialog-close>稍后</button></div>`
-      : `<h3>已是最新版本</h3><p>当前版本 v${esc(APP_VERSION)}，无需更新。</p><div class="dialog-actions"><button class="button primary" type="button" data-dialog-close>知道了</button></div>`)
-    : `<h3>检查更新</h3><p>网络不可用，暂时查不到最新版本。当前版本 v${esc(APP_VERSION)}，可以稍后重试或直接打开发布页。</p><div class="dialog-actions"><a class="button primary" href="${RELEASES_PAGE}" target="_blank" rel="noreferrer">打开发布页</a><button class="button secondary" type="button" data-dialog-close>知道了</button></div>`;
   const card = document.querySelector('#dialog .dialog-card');
-  if (card) card.innerHTML = `<button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${body}`;
+  if (card) card.innerHTML = `<button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${updateDialogHTML(latest, APP_VERSION)}`;
 }
 function myPage() {  const entries = recentProgress(progress);
   content.innerHTML = `<section class="browse my-page"><h1>我的</h1><p class="page-intro">你的观看进度会安全保存在这台设备上。</p>${entries.length ? `<div class="poster-grid landscape-grid">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div>` : '<p class="empty-progress">还没有观看记录。播放一部片子，这里就会记住你看到哪里。</p>'}</section>`;
