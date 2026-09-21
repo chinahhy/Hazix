@@ -55,6 +55,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -455,9 +456,11 @@ fun PosterCard(
     modifier: Modifier = Modifier,
     cardWidth: Dp = 142.dp,
     cardHeight: Dp = 200.dp,
+    focusedScale: Float = 1.07f,
+    focusBorderColor: Color = Gold,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "posterScale")
+    val scale by animateFloatAsState(if (focused) focusedScale else 1f, label = "posterScale")
     Column(Modifier.width(cardWidth).scale(scale)) {
         Box(
             modifier.width(cardWidth).height(cardHeight)
@@ -467,7 +470,7 @@ fun PosterCard(
                 }
                 .clip(RoundedCornerShape(8.dp))
                 .border(
-                    if (focused) BorderStroke(2.dp, Gold) else BorderStroke(1.dp, Color(0xFF343947)),
+                    if (focused) BorderStroke(3.dp, focusBorderColor) else BorderStroke(1.dp, Color(0xFF343947)),
                     RoundedCornerShape(8.dp),
                 )
                 .background(Panel)
@@ -479,6 +482,7 @@ fun PosterCard(
                 contentDescription = vod.title,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop,
+                filterQuality = FilterQuality.High,
             )
             vod.remarks?.let {
                 Text(

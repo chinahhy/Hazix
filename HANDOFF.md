@@ -848,3 +848,43 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
   `dist/Hazix-TV-v3.7.1.apk` 逐字节相同，sha256 `72ee110e…`）。**不是本轮 DSH 放的**，
   很可能是 Codex 会话为了让文件可下载而复制出来的。按项目规则版本化 APK 只应留在 `dist/`，
   本轮**没有删除**它，请确认后清理。
+
+## 2026-09-21 · Codex：首页首卡聚焦、高清推荐与中段静音预览
+
+用户反馈 v3.7.2 首页卡片偏小、启动焦点没有直接落到第一张节目卡、预览从片头开始、海报偏糊，
+并要求真正利用 hdao.tv 已经做好的首页数据。本轮同时修改浏览器预览与电视端源码，**没有打 APK、
+没有发版、没有提交或推送**。
+
+### 1. 根因与改动
+
+- `HdaoApi.featured()` 原来丢弃 `/api/vods/featured` 的 `hero`，重新拼「3 部电影 + 3 部剧」；
+  现改为优先采用 hdao.tv 自己筛选且带 TMDB 横图的 `hero`，缺失时才回退旧算法。
+- 原生首页把共享的 `contentFocusRequester` 绑在「播放」按钮；现改绑第一张节目卡，首次进入首页
+  自动聚焦首卡，从详情返回仍恢复原卡。首排低清兜底内容后置，优先 TMDB 海报。
+- 首页卡片从 `112×158dp` 放大到 `132×186dp`，聚焦缩放从默认 1.07 提高到 1.10，白色 3dp
+  焦点框；海报与巨幕开启高质量缩放过滤。
+- 原生 `HomePreviewPlayer` 在 HLS 时长可用且播放器 Ready 后先 seek 到 50%，再开始静音播放，
+  避免闪过片头；未知/不足 20 秒的流不强行跳转。
+- 网页预览同步增加：首卡自动聚焦、850ms 防抖后加载首集、从时长 50% 静音播放；方向键切卡会
+  同步更换标题/海报/视频。顺手修了一个旧竞态：卡片有焦点时 8 秒轮播仍会换标题，导致标题与
+  正在播放的卡片不一致。
+
+### 2. 改动文件
+
+- 原生：`data/HdaoApi.kt`、`data/PlaybackUrl.kt`、`ui/Screens.kt`、`ui/Components.kt`、
+  `ui/HomePreviewPlayer.kt` 及对应两个数据层测试。
+- 网页：`web/public/app.js`、`app.css`、`data.js`、`web/test/data.test.mjs`。
+
+### 3. 验证结果
+
+- 网页：`pnpm run check` 通过；`pnpm test` **15 passed / 0 failed**。
+- 真实浏览器 1920×1080：首焦点为「明日之幸」第一卡；10 秒后标题、选中卡仍一致；视频状态
+  `playing=true`，实测从 `3069.7967 / 6139.5933 秒`起播。按右键后焦点与标题切到「逃出绝命街」，
+  第二源随后从 `2788.9367 / 5577.8733 秒`起播；console warning/error 为 0。
+- 真实浏览器 414×896：`document.scrollWidth <= innerWidth`，无横向溢出，无 console 错误；
+  手机端不主动抢焦点、也不自动下载预览视频。
+- Android（ASCII 沙箱 `/tmp/hdao-src`）：
+  `:nativeapp:testDebugUnitTest :nativeapp:lintRelease -PhazixMirrorBase=http://10.0.0.104:18088`
+  **BUILD SUCCESSFUL**；30 tests / 0 failures，lint 0 error（既有 warning 保留）。
+- **未验证**：真实电视上的焦点框尺寸、遥控器切卡手感、首帧耗时与 HLS seek 兼容性。没有可用
+  Android 设备；发版前仍需 TV 真机确认。根目录未跟踪的 `Hazix-TV-v3.7.1.apk` 原样保留。

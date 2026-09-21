@@ -56,3 +56,7 @@ export function playbackURL(original) {
   const bytes = new TextEncoder().encode(original);
   return prefix + btoa(Array.from(bytes, b => String.fromCharCode(b)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+
+export function previewStartSeconds(duration) {
+  return Number.isFinite(duration) && duration >= 20 ? duration / 2 : 0;
+}

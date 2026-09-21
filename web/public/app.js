@@ -1,4 +1,4 @@
-import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, categoryItems, recentProgress, playbackURL, isFeedbackKey } from './data.js';
+import { categories, escapeHTML as esc, imageURL, idOf, ratingOf, categoryItems, recentProgress, playbackURL, previewStartSeconds, isFeedbackKey } from './data.js';
 import { playMoveSound, playConfirmSound, playBackSound } from './sound.js';
 import { RELEASE_API, updateCheckingHTML, updateDialogHTML } from './update.js';
 
@@ -100,7 +100,7 @@ async function home(stamp) {
   const recentRow = entries.length
     ? `<section class="catalog-row continue-row"><div class="row-heading"><h2>最近观看</h2></div><div class="poster-rail landscape-rail">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div></section>`
     : '';
-  content.innerHTML = `<section class="hero"><div class="hero-art" aria-hidden="true"></div><div class="hero-copy"></div></section>
+  content.innerHTML = `<section class="hero"><div class="hero-art" aria-hidden="true"><video class="hero-preview" muted playsinline preload="metadata"></video></div><div class="hero-copy"></div></section>
     ${recentRow}
     <section class="catalog-row home-catalog-row featured-shelf"><div class="row-heading"><h2>最近热播</h2><div class="carousel-controls"><span id="hero-count"></span><button data-carousel="prev" aria-label="上一部推荐">${icon('prev')}</button><button data-carousel="next" aria-label="下一部推荐">${icon('next')}</button></div></div>
     <div class="poster-rail landscape-rail featured-rail">${heroes.map(item => card(item, { featured: true, landscape: true })).join('')}</div></section>
@@ -108,6 +108,68 @@ async function home(stamp) {
   let selected = 0;
   const hero = content.querySelector('.hero');
   const art = content.querySelector('.hero-art');
+  const previewVideo = content.querySelector('.hero-preview');
+  let previewTimer, previewHls, previewEvents, previewVodId = null, previewEpoch = 0;
+
+  function clearPreview(resetVod = true) {
+    previewEpoch += 1;
+    clearTimeout(previewTimer);
+    previewEvents?.abort();
+    previewEvents = null;
+    previewHls?.destroy();
+    previewHls = null;
+    previewVideo.pause();
+    previewVideo.classList.remove('is-playing');
+    previewVideo.removeAttribute('src');
+    previewVideo.removeAttribute('data-vod-id');
+    previewVideo.removeAttribute('data-preview-start');
+    previewVideo.load();
+    if (resetVod) previewVodId = null;
+  }
+
+  function startPreview(item) {
+    const vodId = idOf(item);
+    if (!vodId || previewVodId === vodId) return;
+    clearPreview(false);
+    previewVodId = vodId;
+    const token = previewEpoch;
+    previewTimer = setTimeout(async () => {
+      try {
+        const data = await detail(vodId);
+        if (token !== previewEpoch) return;
+        const episode = data.episodes[0];
+        if (!episode) return;
+        const source = playbackURL(episode.originalUrl);
+        previewEvents = new AbortController();
+        const eventOptions = { signal: previewEvents.signal };
+        const playFromMiddle = () => {
+          const start = previewStartSeconds(previewVideo.duration);
+          previewVideo.dataset.previewStart = String(start);
+          const play = () => previewVideo.play().catch(() => {});
+          if (start > 0 && Math.abs(previewVideo.currentTime - start) > 1) {
+            previewVideo.addEventListener('seeked', play, { once: true, ...eventOptions });
+            previewVideo.currentTime = start;
+          } else {
+            play();
+          }
+        };
+        previewVideo.addEventListener('loadedmetadata', playFromMiddle, { once: true, ...eventOptions });
+        previewVideo.addEventListener('playing', () => previewVideo.classList.add('is-playing'), { once: true, ...eventOptions });
+        previewVideo.addEventListener('error', () => previewVideo.classList.remove('is-playing'), eventOptions);
+        previewVideo.dataset.vodId = String(vodId);
+        if (window.Hls?.isSupported()) {
+          const hls = new window.Hls({ enableWorker: true, backBufferLength: 12, maxBufferLength: 15 });
+          previewHls = hls;
+          hls.on(window.Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(source));
+          hls.attachMedia(previewVideo);
+        } else if (previewVideo.canPlayType('application/vnd.apple.mpegurl')) {
+          previewVideo.src = source;
+        }
+      } catch {
+        previewVideo.classList.remove('is-playing');
+      }
+    }, 850);
+  }
   function scene(item) {
     const bg = backdrop(item), still = poster(item);
     if (bg) return `<div class="scene"><img src="${esc(bg)}" alt=""></div>`;
@@ -118,18 +180,26 @@ async function home(stamp) {
     selected = (index + heroes.length) % heroes.length;
     const item = heroes[selected];
     art.insertAdjacentHTML('beforeend', scene(item));
-    while (art.children.length > 2) art.firstElementChild.remove();
+    const scenes = art.querySelectorAll('.scene');
+    if (scenes.length > 2) scenes[0].remove();
     content.querySelector('.hero-copy').innerHTML = `<h1>${esc(item.title)}</h1>${meta(item)}<p class="hero-description">${esc(summary(item))}</p><div class="actions hero-actions"><a class="button primary" href="#play/${idOf(item)}/0">${icon('play')}播放</a><a class="button secondary" href="#detail/${idOf(item)}">${icon('info')}<span class="desktop-info-label">更多信息</span><span class="mobile-info-label">详情</span></a></div>`;
     content.querySelector('#hero-count').textContent = `${String(selected + 1).padStart(2, '0')} / ${String(heroes.length).padStart(2, '0')}`;
     content.querySelectorAll('.featured-card').forEach((link, i) => link.classList.toggle('selected', i === selected));
     bindImageErrors();
   }
+  function activate(index) {
+    show(index);
+    startPreview(heroes[selected]);
+  }
   show(0);
   content.querySelectorAll('.featured-card').forEach((link, index) => {
-    link.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') show(index); });
-    link.addEventListener('focus', () => show(index));
+    link.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') activate(index); });
+    link.addEventListener('focus', () => activate(index));
   });
-  content.querySelectorAll('[data-carousel]').forEach(button => button.addEventListener('click', () => show(selected + (button.dataset.carousel === 'next' ? 1 : -1))));
+  content.querySelectorAll('[data-carousel]').forEach(button => button.addEventListener('click', () => activate(selected + (button.dataset.carousel === 'next' ? 1 : -1))));
+  if (matchMedia('(min-width: 701px)').matches) {
+    queueMicrotask(() => content.querySelector('.featured-card')?.focus({ preventScroll: true }));
+  }
   const syncNav = () => document.querySelector('#nav')?.classList.toggle('scrolled', window.scrollY > 24);
   syncNav();
   window.addEventListener('scroll', syncNav, { passive: true });
@@ -142,9 +212,13 @@ async function home(stamp) {
     touchStart = null;
   }, { passive: true });
   heroTimer = setInterval(() => {
-    if (!document.hidden && !hero.matches(':hover') && !hero.contains(document.activeElement) && !matchMedia('(prefers-reduced-motion: reduce)').matches) show(selected + 1);
+    const shelfHasFocus = content.querySelector('.featured-rail')?.contains(document.activeElement);
+    if (!document.hidden && !hero.matches(':hover') && !shelfHasFocus && !matchMedia('(prefers-reduced-motion: reduce)').matches) show(selected + 1);
   }, 8000);
-  cleanup = () => window.removeEventListener('scroll', syncNav);
+  cleanup = () => {
+    clearPreview();
+    window.removeEventListener('scroll', syncNav);
+  };
 }
 /**
  * Remote-control feedback: move/confirm/back click, hold-to-repeat stays quiet.
@@ -347,7 +421,7 @@ async function render() {
     else throw new Error('页面不存在');
     if (stamp !== epoch) return;
     bindImageErrors();
-    if (page !== 'search') content.focus({ preventScroll: true });
+    if (page !== 'search' && page !== 'home') content.focus({ preventScroll: true });
   } catch (error) {
     if (stamp !== epoch) return;
     content.innerHTML = `<section class="empty"><h1>内容暂时没有加载出来</h1><p>${esc(error.message)}</p><div class="actions"><button class="button primary" data-retry>重新加载</button><a class="button secondary" href="#home">回到首页</a></div></section>`;

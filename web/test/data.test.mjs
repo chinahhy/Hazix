@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recentProgress, recentHot, categoryItems, escapeHTML, imageURL, playbackURL, ratingOf, isFeedbackKey } from '../public/data.js';
+import { recentProgress, recentHot, categoryItems, escapeHTML, imageURL, playbackURL, previewStartSeconds, ratingOf, isFeedbackKey } from '../public/data.js';
 import { apiTarget, tmdbMediaType, tmdbScoreFromHTML } from '../server.mjs';
 
 test('继续观看按节目 ID 和标准化片名去重，排除看完的集数', () => {
@@ -38,6 +38,11 @@ test('播放地址与原生客户端的 base64url 包装兼容，已有包装不
   const expected = 'https://stream.hdao.tv/api/proxy/m3u8?url=' + Buffer.from(input).toString('base64url');
   assert.equal(playbackURL(input), expected);
   assert.equal(playbackURL(expected), expected);
+});
+test('首页静音预览从节目中间开始，未知和极短时长不乱跳', () => {
+  assert.equal(previewStartSeconds(2700), 1350);
+  assert.equal(previewStartSeconds(10), 0);
+  assert.equal(previewStartSeconds(Infinity), 0);
 });
 test('接口仅允许现有片库路由，不能作为任意网址代理', () => {
   assert.equal(apiTarget(new URL('http://localhost/api/vods/123?url=http://localhost:8000')).href, 'https://hdao.tv/api/vods/123');

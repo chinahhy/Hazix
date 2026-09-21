@@ -18,4 +18,11 @@ class PlaybackUrlTest {
         val url = "https://stream.hdao.tv/api/proxy/m3u8?url=YWJj"
         assertEquals(url, playbackUrl(url))
     }
+
+    @Test
+    fun `homepage preview starts in the middle of normal programmes`() {
+        assertEquals(1_350_000L, previewStartPositionMs(2_700_000L))
+        assertEquals(0L, previewStartPositionMs(10_000L))
+        assertEquals(0L, previewStartPositionMs(-1L))
+    }
 }

@@ -15,6 +15,19 @@ class FeaturedCatalogTest {
     }
 
     @Test
+    fun `homepage uses curated hdao hero with backdrops before synthetic fallback`() {
+        val curated = listOf(
+            vod(101, "无横图", "电影"),
+            vod(102, "高清推荐", "剧集").copy(backdropUrl = "https://image.tmdb.org/t/p/original/hero.jpg"),
+        )
+        val movies = listOf(vod(1, "电影 1", "电影"))
+        val tv = listOf(vod(2, "剧集 1", "剧集"))
+
+        assertEquals(listOf(102), homeHero(curated, movies, tv).map { it.vodId })
+        assertEquals(listOf(1, 2), homeHero(emptyList(), movies, tv).map { it.vodId })
+    }
+
+    @Test
     fun `tmdb images take priority without stretching poster into backdrop`() {
         assertEquals(
             "https://image.tmdb.org/t/p/original/poster.jpg",

@@ -53,6 +53,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -198,7 +199,9 @@ private fun HomeCatalog(
         catalog.hero.distinctBy { it.vodId }.ifEmpty { fallback }.take(6)
     }
     val featuredPosters = remember(catalog) {
-        (heroVods + catalog.rows.flatMap { it.items })
+        val allItems = (heroVods + catalog.rows.flatMap { it.items }).distinctBy { it.vodId }
+        val tmdbPosters = allItems.filter { it.coverUrl?.contains("image.tmdb.org") == true }
+        (heroVods + tmdbPosters + allItems)
             .distinctBy { it.vodId }
             .take(10)
     }
@@ -221,7 +224,7 @@ private fun HomeCatalog(
                     onVodClick(vod)
                 },
                 onPlay = onPlay,
-                firstActionFocusRequester = contentFocusRequester,
+                initialPosterFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
             )
         }
@@ -260,23 +263,30 @@ private fun HomePosterCarousel(
     onVodClick: (Vod) -> Unit,
     onRailVodClick: (Vod) -> Unit,
     onPlay: (Vod) -> Unit,
-    firstActionFocusRequester: FocusRequester,
+    initialPosterFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
 ) {
     if (heroVods.isEmpty()) return
     var selectedVod by remember(heroVods) { mutableStateOf(heroVods.first()) }
     val railRestoreRequester = remember { FocusRequester() }
 
-    // Same contract as the category grid: on the way back from a detail page,
-    // scroll the poster that was opened into view and put the cursor on it.
-    LaunchedEffect(Unit) {
-        val target = lastOpenedVodId ?: return@LaunchedEffect
-        val index = posterVods.indexOfFirst { it.vodId == target }
-        if (index < 0) return@LaunchedEffect
+    // Open directly on the first programme card. On the way back from detail,
+    // restore the card that was opened instead. This also makes the selected
+    // card drive the backdrop and preview immediately, without an extra press.
+    LaunchedEffect(posterVods, lastOpenedVodId) {
+        if (posterVods.isEmpty()) return@LaunchedEffect
+        val index = lastOpenedVodId
+            ?.let { target -> posterVods.indexOfFirst { it.vodId == target }.takeIf { it >= 0 } }
+            ?: 0
         railState.scrollToItem(index)
+        val requester = if (lastOpenedVodId == null || index == 0) {
+            initialPosterFocusRequester
+        } else {
+            railRestoreRequester
+        }
         repeat(5) {
             withFrameNanos { }
-            if (runCatching { railRestoreRequester.requestFocus() }.isSuccess) {
+            if (runCatching { requester.requestFocus() }.isSuccess) {
                 return@LaunchedEffect
             }
         }
@@ -298,7 +308,7 @@ private fun HomePosterCarousel(
     LaunchedEffect(selectedVod.vodId, heroRegionHasFocus) {
         if (!heroRegionHasFocus) return@LaunchedEffect
         previewUrl = null
-        delay(1_800L)
+        delay(850L)
         previewUrl = runCatching {
             repository.detail(selectedVod.vodId).episodes.firstOrNull()?.originalUrl
         }.getOrNull()
@@ -317,6 +327,7 @@ private fun HomePosterCarousel(
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.High,
                 )
             }
         }
@@ -357,7 +368,6 @@ private fun HomePosterCarousel(
                 vod = vod,
                 onPlay = { onPlay(vod) },
                 onMoreInfo = { onVodClick(vod) },
-                firstActionFocusRequester = firstActionFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
                 onActionsFocusChanged = { actionsHaveFocus = it },
             )
@@ -377,18 +387,21 @@ private fun HomePosterCarousel(
                 contentPadding = PaddingValues(start = 42.dp, end = 28.dp, top = 5.dp, bottom = 13.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                rowItemsIndexed(posterVods, key = { index, vod -> "home-poster:${vod.vodId}:$index" }) { _, vod ->
+                rowItemsIndexed(posterVods, key = { index, vod -> "home-poster:${vod.vodId}:$index" }) { index, vod ->
+                    val focusModifier = when {
+                        index == 0 -> Modifier.focusRequester(initialPosterFocusRequester)
+                        vod.vodId == lastOpenedVodId -> Modifier.focusRequester(railRestoreRequester)
+                        else -> Modifier
+                    }
                     PosterCard(
                         vod = vod,
                         onClick = { onRailVodClick(vod) },
                         onFocused = { selectedVod = vod },
-                        modifier = if (vod.vodId == lastOpenedVodId) {
-                            Modifier.focusRequester(railRestoreRequester)
-                        } else {
-                            Modifier
-                        },
-                        cardWidth = 112.dp,
-                        cardHeight = 158.dp,
+                        modifier = focusModifier,
+                        cardWidth = 132.dp,
+                        cardHeight = 186.dp,
+                        focusedScale = 1.10f,
+                        focusBorderColor = Color.White,
                     )
                 }
             }
@@ -401,7 +414,6 @@ private fun HomeFeaturedDetails(
     vod: Vod,
     onPlay: () -> Unit,
     onMoreInfo: () -> Unit,
-    firstActionFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
     onActionsFocusChanged: (Boolean) -> Unit,
 ) {
@@ -449,8 +461,7 @@ private fun HomeFeaturedDetails(
                 primary = true,
                 icon = PlayIcon,
                 onClick = onPlay,
-                modifier = Modifier.focusRequester(firstActionFocusRequester)
-                    .focusProperties { up = navigationFocusRequester },
+                modifier = Modifier.focusProperties { up = navigationFocusRequester },
             )
             TvButton(
                 text = "更多信息",

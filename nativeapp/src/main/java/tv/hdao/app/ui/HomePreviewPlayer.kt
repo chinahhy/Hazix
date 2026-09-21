@@ -32,6 +32,7 @@ import tv.hdao.app.data.NetworkClients
 import tv.hdao.app.data.MEDIA_REFERER
 import tv.hdao.app.data.MEDIA_USER_AGENT
 import tv.hdao.app.data.playbackUrl
+import tv.hdao.app.data.previewStartPositionMs
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -78,7 +79,40 @@ internal fun HomePreviewPlayer(
                             .build()
                     )
                 }
+            var previewSeekApplied = false
+            fun preparePreviewStart(): Boolean {
+                if (previewSeekApplied) return true
+                if (player.isCurrentMediaItemLive) {
+                    previewSeekApplied = true
+                    return true
+                }
+                val duration = player.duration
+                if (duration <= 0L) return false
+                val startPosition = previewStartPositionMs(duration)
+                if (startPosition > 0L) player.seekTo(startPosition)
+                previewSeekApplied = true
+                return true
+            }
+            fun playWhenPreviewIsReady() {
+                if (
+                    player.playbackState == Player.STATE_READY &&
+                    preparePreviewStart() &&
+                    latestIsActive &&
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                ) {
+                    player.play()
+                }
+            }
             val playerListener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState != Player.STATE_READY) return
+                    playWhenPreviewIsReady()
+                }
+
+                override fun onEvents(player: Player, events: Player.Events) {
+                    playWhenPreviewIsReady()
+                }
+
                 override fun onRenderedFirstFrame() {
                     firstFrameRendered = true
                 }
@@ -86,7 +120,7 @@ internal fun HomePreviewPlayer(
             val lifecycleObserver = LifecycleEventObserver { _, event ->
                 when (event) {
                     Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
-                        if (latestIsActive) player.play()
+                        playWhenPreviewIsReady()
                     }
                     Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> player.pause()
                     else -> Unit
@@ -97,9 +131,6 @@ internal fun HomePreviewPlayer(
             lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
             activePlayer = player
             player.prepare()
-            if (latestIsActive && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                player.play()
-            }
 
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
@@ -113,8 +144,21 @@ internal fun HomePreviewPlayer(
     DisposableEffect(activePlayer, isActive, lifecycleOwner) {
         val player = activePlayer
         if (player != null) {
-            if (isActive && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                player.play()
+            if (
+                isActive &&
+                player.playbackState == Player.STATE_READY &&
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            ) {
+                val durationKnown = player.isCurrentMediaItemLive || player.duration > 0L
+                if (durationKnown) {
+                    val startPosition = previewStartPositionMs(player.duration)
+                    if (!player.isCurrentMediaItemLive && player.currentPosition < 1_000L && startPosition > 0L) {
+                        player.seekTo(startPosition)
+                    }
+                    player.play()
+                } else {
+                    player.pause()
+                }
             } else {
                 player.pause()
             }

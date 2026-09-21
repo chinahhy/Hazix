@@ -9,6 +9,17 @@ internal fun playbackUrl(originalUrl: String): String {
     return PLAYBACK_PROXY + originalUrl.toByteArray(Charsets.UTF_8).base64UrlNoPadding()
 }
 
+/**
+ * Pick a representative frame for a silent homepage preview.
+ *
+ * Starting at zero mostly shows studio cards, recaps and opening credits. The
+ * middle of a VOD is much more useful for deciding whether to watch it. Very
+ * short or still-unknown streams stay at zero because seeking them is noisy and
+ * unreliable.
+ */
+internal fun previewStartPositionMs(durationMs: Long): Long =
+    if (durationMs >= 20_000L) durationMs / 2L else 0L
+
 private fun ByteArray.base64UrlNoPadding(): String {
     val output = StringBuilder((size * 4 + 2) / 3)
     var index = 0

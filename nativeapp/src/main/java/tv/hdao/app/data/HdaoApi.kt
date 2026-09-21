@@ -32,9 +32,11 @@ class HdaoApi(
         }.filter { it.items.isNotEmpty() }
         val movies = rows.firstOrNull { it.category == "movie" }?.items.orEmpty()
         val tv = rows.firstOrNull { it.category == "tv" }?.items.orEmpty()
-        val hero = recentHot(movies, tv).ifEmpty {
-            root.optJSONArray("hero").toVods().ifEmpty { rows.firstOrNull()?.items.orEmpty() }
-        }
+        // hdao.tv already curates this list for its own full-width homepage hero.
+        // Prefer it instead of rebuilding a weaker "three movies + three shows"
+        // approximation: curated entries have purpose-picked, high-resolution
+        // TMDB backdrops and are the closest source of truth for this surface.
+        val hero = homeHero(root.optJSONArray("hero").toVods(), movies, tv)
         FeaturedCatalog(hero, rows)
     }
 
@@ -110,6 +112,13 @@ private data class CatalogDefinition(
 
 internal fun recentHot(movies: List<Vod>, tv: List<Vod>, perType: Int = 3): List<Vod> =
     (movies.take(perType) + tv.take(perType)).distinctBy { it.vodId }
+
+internal fun homeHero(curated: List<Vod>, movies: List<Vod>, tv: List<Vod>): List<Vod> =
+    curated
+        .filter { it.backdropUrl != null }
+        .ifEmpty { curated }
+        .ifEmpty { recentHot(movies, tv) }
+        .ifEmpty { movies.ifEmpty { tv } }
 
 private fun JSONArray?.toVods(mediaType: String? = null): List<Vod> = buildList {
     val array = this@toVods ?: return@buildList
