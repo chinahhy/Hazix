@@ -921,3 +921,11 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - `aapt dump badging`：TV 为 `tv.hdao.app`、手机为 `tv.hdao.mobile`，均为 versionName `3.7.3` / versionCode `3007003`。
 - `apksigner verify --min-sdk-version 23`：两包 v1/v2 签名均有效，证书 SHA-256 均为既有升级链 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`。
 - 真机仍需确认海报下移后与简介、按钮的最终间距；构建、lint 与签名验证不能替代电视现场视觉验收。
+
+## 2026-09-22 · Codex：按 TCL 真机坐标再次下移首页海报
+
+- 用 ADB 连上已记录的 `tcl_m7642` (`10.0.0.124:5555`)，读到真实显示参数为 `1920×1080` / `240 dpi`（`1dp = 1.5px`），电视上运行的是正式版 3.7.3（versionCode 3007003）。
+- v3.7.3 真机 UI 树：播放按钮 `y=331..403px`，「最近热播」`y=454..491px`，首张聚焦海报 `y=491..798px`，片名 `y=810..849px`，「最近观看」`y=868..908px`。
+- `nativeapp/.../ui/Screens.kt`：`HomePosterCarousel` 高度从 `600dp` 增至 `664dp`，左侧详情保持不动，底部对齐的「最近热播」和整排卡片再下移 `64dp = 96px`。预期首张海报为 `y=587..894px`，仍完整落在 1080p 视口内。
+- 为真机验收构建的 debug APK 已成功，但 TCL 系统返回 `install apk has be disabled from pm by system default`，未安装、未留下 debug 应用；没有擅自修改电视的 ADB 安装安全开关。
+- ASCII 沙箱验证：`:nativeapp:assembleDebug`、`:nativeapp:testDebugUnitTest`、`:nativeapp:lintRelease` 全部通过，30 tests / 0 failures，lint 0 error。本轮未改 `CHANGELOG.md`、未打正式 APK、未提交或发版。
