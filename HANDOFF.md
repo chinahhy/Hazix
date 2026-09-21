@@ -912,3 +912,12 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - `nativeapp/.../ui/Screens.kt`：将首页 hero 高度增加到 `600dp`；上方文案保持原位，底部对齐的标题与海报行整体下移 `40dp`，同时给 `1.10` 聚焦外扩留出余量。
 - 验证：ASCII 沙箱中 `:nativeapp:testDebugUnitTest :nativeapp:lintRelease` 构建成功，30 tests / 0 failures，lint 0 error；网页基线 `pnpm run check && pnpm test` 通过，15 tests / 0 failures。
 - 本轮只修源码，不打 APK、不发版；真机视觉间距需要下一个 APK 安装后确认。
+
+## 2026-09-22 · Codex：发布 v3.7.3
+
+- 首页海报行下移修复与 `CHANGELOG.md` 提交为 `a67fc7e`，已推送 `main`；标签 `v3.7.3` 指向该提交。
+- GitHub Release：<https://github.com/chinahhy/Hazix/releases/tag/v3.7.3>；云端正式签名流水线已产出 TV 与手机两个 APK。
+- 两包已归档到 `dist/`，未覆盖或删除旧版：TV 2,833,970 字节，SHA-256 `a9734b67760cfc3cc8d4a5b58a732c90691c8f7d59ae95a91bd843c00c6370a2`；手机 2,764,466 字节，SHA-256 `5a816bd264681db0d5707041f1dc35b5143dbce4977db5b15aee3c4b364d3a47`。
+- `aapt dump badging`：TV 为 `tv.hdao.app`、手机为 `tv.hdao.mobile`，均为 versionName `3.7.3` / versionCode `3007003`。
+- `apksigner verify --min-sdk-version 23`：两包 v1/v2 签名均有效，证书 SHA-256 均为既有升级链 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`。
+- 真机仍需确认海报下移后与简介、按钮的最终间距；构建、lint 与签名验证不能替代电视现场视觉验收。
