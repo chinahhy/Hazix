@@ -97,13 +97,13 @@ async function home(stamp) {
   const heroes = (catalog.hero || []).filter(item => idOf(item));
   if (!heroes.length) { content.innerHTML = '<div class="empty"><h1>片库暂时没有推荐</h1><p>稍后再来看看。</p></div>'; return; }
   const entries = recentProgress(progress);
-  const recentRow = entries.length
-    ? `<section class="catalog-row continue-row"><div class="row-heading"><h2>最近观看</h2></div><div class="poster-rail landscape-rail">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div></section>`
-    : '';
-  content.innerHTML = `<section class="hero"><div class="hero-art" aria-hidden="true"><video class="hero-preview" muted playsinline preload="metadata"></video></div><div class="hero-copy"></div></section>
-    ${recentRow}
+  const recentRow = `<section class="catalog-row continue-row"><div class="row-heading"><h2>最近观看</h2></div>${entries.length
+    ? `<div class="poster-rail landscape-rail">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div>`
+    : '<div class="empty-progress continue-empty" tabindex="0">还没有观看记录</div>'}</section>`;
+  content.innerHTML = `<div class="home-first-screen"><section class="hero"><div class="hero-art" aria-hidden="true"><video class="hero-preview" muted playsinline preload="metadata"></video></div><div class="hero-copy"></div></section>
     <section class="catalog-row home-catalog-row featured-shelf"><div class="row-heading"><h2>最近热播</h2><div class="carousel-controls"><span id="hero-count"></span><button data-carousel="prev" aria-label="上一部推荐">${icon('prev')}</button><button data-carousel="next" aria-label="下一部推荐">${icon('next')}</button></div></div>
-    <div class="poster-rail landscape-rail featured-rail">${heroes.map(item => card(item, { featured: true, landscape: true })).join('')}</div></section>
+    <div class="poster-rail featured-rail">${heroes.map(item => card(item, { featured: true })).join('')}</div></section></div>
+    ${recentRow}
     `;
   let selected = 0;
   const hero = content.querySelector('.hero');
@@ -451,10 +451,19 @@ document.addEventListener('keydown', event => {
   }
   if (event.target.matches('input, textarea, select, video')) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-  const candidates = [...document.querySelectorAll('a[href],button:not(:disabled),input')].filter(el => el.getClientRects().length && !el.closest('.skip'));
+  const candidates = [...document.querySelectorAll('a[href],button:not(:disabled),input,[tabindex="0"]')].filter(el => el.getClientRects().length && !el.closest('.skip'));
   if (!candidates.length) return;
   const current = document.activeElement;
   if (!candidates.includes(current)) { event.preventDefault(); (content.querySelector('a,button,input') || candidates[0]).focus(); return; }
+  if (event.key === 'ArrowDown' && current.matches('.featured-card')) {
+    const firstContinue = content.querySelector('.continue-card, .continue-empty');
+    if (firstContinue) {
+      event.preventDefault();
+      firstContinue.focus({ preventScroll: true });
+      firstContinue.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
+      return;
+    }
+  }
   const from = current.getBoundingClientRect(), cx = from.x + from.width / 2, cy = from.y + from.height / 2;
   const horizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
   const sign = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;

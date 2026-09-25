@@ -334,6 +334,7 @@ fun ContinueWatchingRow(
     // Always remembered, so the call order stays stable for callers that pass
     // no state of their own.
     val fallbackListState = rememberLazyListState()
+    var emptyFocused by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(Ink)) {
         Text(
             "最近观看",
@@ -368,8 +369,11 @@ fun ContinueWatchingRow(
         if (entries.isEmpty()) {
             Text(
                 "还没有观看记录",
-                modifier = Modifier.padding(start = contentStart, top = 8.dp, bottom = 18.dp),
-                color = Color(0xFF8F939C),
+                modifier = Modifier.padding(start = contentStart, top = 8.dp, bottom = 18.dp)
+                    .focusRequester(firstItemFocusRequester)
+                    .onFocusChanged { emptyFocused = it.isFocused }
+                    .focusable(),
+                color = if (emptyFocused) Color.White else Color(0xFF8F939C),
                 fontSize = 14.sp,
             )
         }

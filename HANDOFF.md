@@ -939,3 +939,13 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - `apksigner verify --min-sdk-version 23`：两包 v1/v2 签名均有效，证书 SHA-256 为既有升级链 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`。
 - NAS 中转站 `/releases/latest` 已返回 `X-Hazix-Tag: v3.7.4`；TV 包 Range 请求返回 `206` 且总大小 2,833,977 字节。
 - 待用户在 TCL 真机安装后确认首张海报是否落在预期的 `y=587..894px`。
+
+## 2026-09-25 · Codex：首页首屏与最近观看分屏
+
+- 用户明确希望：首页打开时轮播介绍和海报卡片占据首屏，海报卡片靠屏幕底部；「最近观看」留在首屏以下，遥控器按下后才显示。
+- 电视端 `Screens.kt`：首页轮播容器改为占满当前 `LazyColumn` 视口（替代固定 `664dp`），海报行仍底部对齐；「最近观看」前留 `48dp` 安全间隔，避免初始聚焦引起轻微滚动时露出下一行。海报卡拦截遥控器下键，滚动到最近观看并请求首项焦点。
+- 电视端 `Components.kt`：没有观看历史时，空状态文案也可聚焦，按下键仍能看到明确反馈。
+- 网页预览 `app.js` / `app.css`：首屏组合轮播介绍与底部竖版海报；最近观看移到首屏以下；下键从海报直接聚焦最近观看，有记录和空记录均适用。手机宽度保留底部导航空间。
+- 真实浏览器 1920×1080：首屏底边与最近观看起点都在 `y=1080px`；初始焦点是第一张海报；按一次下键后焦点是最近观看卡，页面滚动 `307px`，该行位于视口 `y=773px`。414×896 手机宽度 `scrollWidth <= innerWidth`，首屏顶部时最近观看从 `y=824px` 开始。
+- 网页检查：`pnpm run check` 通过，`pnpm test` 15/15 通过。电视端用项目内 JDK / Gradle / SDK，在原项目路径执行 `:nativeapp:compileDebugKotlin :nativeapp:testDebugUnitTest :nativeapp:lintRelease --offline`，**BUILD SUCCESSFUL**，30 tests / 0 failures，lint 无 error。旧记录说中文路径无法编译；本轮以项目本地环境变量直接编译成功，后续优先复核这一新事实。
+- **真机未验证**：新代码尚未装到 TCL 电视；上次 ADB 安装被电视系统禁止。本轮未打 APK、未发版、未提交或推送。根目录原有未跟踪 `Hazix-TV-v3.7.1.apk` 未触碰。

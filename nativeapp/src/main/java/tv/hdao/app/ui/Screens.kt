@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -51,6 +52,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -62,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import tv.hdao.app.data.FavoriteEntry
 import tv.hdao.app.data.Favorites
 import tv.hdao.app.data.FeaturedCatalog
@@ -206,6 +213,26 @@ private fun HomeCatalog(
             .take(10)
     }
     val continueWatchingFocusRequester = remember { FocusRequester() }
+    val focusScope = rememberCoroutineScope()
+    var movingToContinue by remember { mutableStateOf(false) }
+    val showContinueWatching = {
+        if (!movingToContinue) {
+            movingToContinue = true
+            focusScope.launch {
+                try {
+                    state.listState.scrollToItem(1)
+                    repeat(5) {
+                        withFrameNanos { }
+                        if (runCatching { continueWatchingFocusRequester.requestFocus() }.isSuccess) {
+                            return@launch
+                        }
+                    }
+                } finally {
+                    movingToContinue = false
+                }
+            }
+        }
+    }
     LazyColumn(
         state = state.listState,
         modifier = Modifier.fillMaxSize().background(Ink),
@@ -213,6 +240,7 @@ private fun HomeCatalog(
     ) {
         item(key = "home-hero") {
             HomePosterCarousel(
+                modifier = Modifier.fillParentMaxHeight(),
                 heroVods = heroVods,
                 posterVods = featuredPosters,
                 repository = repository,
@@ -226,17 +254,21 @@ private fun HomeCatalog(
                 onPlay = onPlay,
                 initialPosterFocusRequester = contentFocusRequester,
                 navigationFocusRequester = navigationFocusRequester,
+                onPosterDown = showContinueWatching,
             )
         }
         item(key = "recent-watching") {
-            ContinueWatchingRow(
-                entries = continueEntries,
-                onClick = onContinue,
-                navigationFocusRequester = null,
-                firstItemFocusRequester = continueWatchingFocusRequester,
-                contentStart = 42.dp,
-                listState = state.continueState,
-            )
+            Column {
+                Spacer(Modifier.height(48.dp))
+                ContinueWatchingRow(
+                    entries = continueEntries,
+                    onClick = onContinue,
+                    navigationFocusRequester = null,
+                    firstItemFocusRequester = continueWatchingFocusRequester,
+                    contentStart = 42.dp,
+                    listState = state.continueState,
+                )
+            }
         }
         if (favoriteItems.isNotEmpty()) {
             item(key = "favorites") {
@@ -255,6 +287,7 @@ private fun HomeCatalog(
 
 @Composable
 private fun HomePosterCarousel(
+    modifier: Modifier,
     heroVods: List<Vod>,
     posterVods: List<Vod>,
     repository: HdaoRepository,
@@ -265,6 +298,7 @@ private fun HomePosterCarousel(
     onPlay: (Vod) -> Unit,
     initialPosterFocusRequester: FocusRequester,
     navigationFocusRequester: FocusRequester,
+    onPosterDown: () -> Unit,
 ) {
     if (heroVods.isEmpty()) return
     var selectedVod by remember(heroVods) { mutableStateOf(heroVods.first()) }
@@ -314,10 +348,9 @@ private fun HomePosterCarousel(
         }.getOrNull()
     }
 
-    // Calibrated against the 1920x1080 / 240 dpi TCL tcl_m7642: 64dp is 96px.
-    // Keep the details fixed and move the bottom-anchored shelf far enough down
-    // that the focused poster no longer crowds the synopsis and action buttons.
-    Box(Modifier.fillMaxWidth().height(664.dp)) {
+    // Give the carousel its own viewport. The recent watching row starts below
+    // the fold, while the poster shelf remains anchored to the screen bottom.
+    Box(modifier.fillMaxWidth()) {
         Crossfade(
             targetState = selectedVod,
             animationSpec = tween(420),
@@ -395,6 +428,13 @@ private fun HomePosterCarousel(
                         index == 0 -> Modifier.focusRequester(initialPosterFocusRequester)
                         vod.vodId == lastOpenedVodId -> Modifier.focusRequester(railRestoreRequester)
                         else -> Modifier
+                    }.onPreviewKeyEvent { event ->
+                        if (event.key == Key.DirectionDown && event.type == KeyEventType.KeyDown) {
+                            onPosterDown()
+                            true
+                        } else {
+                            false
+                        }
                     }
                     PosterCard(
                         vod = vod,
