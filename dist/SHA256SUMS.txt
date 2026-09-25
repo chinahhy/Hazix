@@ -45,3 +45,6 @@ a9734b67760cfc3cc8d4a5b58a732c90691c8f7d59ae95a91bd843c00c6370a2  Hazix-TV-v3.7.
 
 9718f2cd0fc78422e67d7fb5f36b9f93e055866c9694b8c61f1439a5fa8d8372  Hazix-TV-v3.7.4.apk
 28553aabea8cd246cab34e91ec640da1cffadef24d9206edb68cb7dd00400c52  Hazix-Mobile-v3.7.4.apk
+
+9e3d05dced940c7e83032e0ce0abaeed5507ba878e2edc9e0d0f9c0d83263842  Hazix-TV-v3.7.5.apk
+d14aa3cb6a833683e10a9a578848acac981cfdaf88a41994d0f63fff6de7dfdc  Hazix-Mobile-v3.7.5.apk

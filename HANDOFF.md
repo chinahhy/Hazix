@@ -949,3 +949,12 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - 真实浏览器 1920×1080：首屏底边与最近观看起点都在 `y=1080px`；初始焦点是第一张海报；按一次下键后焦点是最近观看卡，页面滚动 `307px`，该行位于视口 `y=773px`。414×896 手机宽度 `scrollWidth <= innerWidth`，首屏顶部时最近观看从 `y=824px` 开始。
 - 网页检查：`pnpm run check` 通过，`pnpm test` 15/15 通过。电视端用项目内 JDK / Gradle / SDK，在原项目路径执行 `:nativeapp:compileDebugKotlin :nativeapp:testDebugUnitTest :nativeapp:lintRelease --offline`，**BUILD SUCCESSFUL**，30 tests / 0 failures，lint 无 error。旧记录说中文路径无法编译；本轮以项目本地环境变量直接编译成功，后续优先复核这一新事实。
 - **真机未验证**：新代码尚未装到 TCL 电视；上次 ADB 安装被电视系统禁止。本轮未打 APK、未发版、未提交或推送。根目录原有未跟踪 `Hazix-TV-v3.7.1.apk` 未触碰。
+
+## 2026-09-25 · Codex：发布 v3.7.5
+
+- Hoya 验收 1920×1080 网页预览后明确要求执行构建。首页分屏改动与 `CHANGELOG.md` 提交为 `b517ac1`，已推送 `main`；标签 `v3.7.5` 指向该提交，触发正式签名流水线 [#13](https://github.com/chinahhy/Hazix/actions/runs/36124968405)。
+- 本地发布参数 `VERSION_NAME=3.7.5`、`VERSION_CODE=3007005`：网页 `pnpm run check` 与 15 项测试通过；电视、手机 `testDebugUnitTest` 和 `lintRelease` 全部 `BUILD SUCCESSFUL`。
+- GitHub Release：<https://github.com/chinahhy/Hazix/releases/tag/v3.7.5>。云端签名构建、签名校验、artifact 上传与 Release 发布步骤均成功。
+- TV 与手机 APK 已从家庭 NAS 发布镜像下载、按 GitHub Release 的 `SHA256SUMS.txt` 核对并归档到 `dist/`；旧版 APK 未覆盖或删除。TV 2,833,977 字节，SHA-256 `9e3d05dced940c7e83032e0ce0abaeed5507ba878e2edc9e0d0f9c0d83263842`；手机 2,764,473 字节，SHA-256 `d14aa3cb6a833683e10a9a578848acac981cfdaf88a41994d0f63fff6de7dfdc`。
+- `aapt dump badging`：TV `tv.hdao.app`、手机 `tv.hdao.mobile`，均为 versionName `3.7.5` / versionCode `3007005`。`apksigner verify --min-sdk-version 23`：v1/v2 签名均有效，证书 SHA-256 为既有升级链 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`。
+- `dist/SHA256SUMS.txt` 已追加本版校验值。下载产生的项目内临时目录和残缺直连文件已清理；原有根目录未跟踪 `Hazix-TV-v3.7.1.apk` 原样保留。**未在 TCL 真机安装或验证新版本运行时行为**。
