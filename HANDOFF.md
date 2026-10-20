@@ -976,3 +976,12 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - 根目录重复 APK 已按 SHA-256 核对后删除（`72ee110e…`，与 `dist/Hazix-TV-v3.7.1.apk` 逐字节相同）；`dist/` 中的版本化 APK 未动。
 - 已记录、本轮未修的两个小坑：两个 Gradle 模块的版本默认值仍是 `3.3.9/17`，本地不带 `-P` 构建会产出低于已安装版本的包；`web/server.mjs` 的 `apiTarget()` 已不被生产代码调用，但 `data.test.mjs` 仍在断言它，测试守的是死代码。
 - 主线下一步：先在 TCL 真机验收 v3.7.5 的首屏布局，再做 P0 收藏进阶。
+
+## 2026-10-21 · DSH：修复 CI 产物的版本号
+
+- 复核 CI run `39497072965`（提交 `e1cc0bf`）的产物：`aapt dump badging` 显示 TV/手机两个 APK 都是 versionName `3.3.9`、versionCode `17`。原因是 `ci.yml` 构建时没有传 `-PVERSION_NAME/-VERSION_CODE`，而两个模块的默认值还停在 3.3.9/17；这些“可安装”的 CI 产物实际上无法覆盖已装的 3.7.5。
+- 根因修复（提交 `d57bdea`）：根 `build.gradle.kts` 从 `CHANGELOG.md` 顶部解析 `## X.Y.Z`，计算 `versionName` 与 `versionCode` 作为默认值；`nativeapp` / `mobileapp` 改为读取这组默认值，发版时仍由 `-P` 覆盖。
+- 防复发：`ci.yml` 的签名校验步骤新增 `aapt dump badging` 断言，APK 的 versionName 必须等于 CHANGELOG 顶部版本，否则构建失败。
+- 验证：本地 `:nativeapp:processDebugMainManifest` / `:mobileapp:processDebugMainManifest` 产出 versionCode `3007005` 与 versionName `3.7.5-debug`，release manifest 为 `3.7.5`；CI run `39498084962` 三个 job 全绿；从该 run 下载的 TV/手机产物均为 versionName `3.7.5` / versionCode `3007005`。
+- 仍未修：`web/server.mjs` 的 `apiTarget()` 已不被生产代码调用，但 `web/test/data.test.mjs` 仍在断言它。留作下一轮小清理。
+- 主线下一步不变：TCL 真机验收 v3.7.5 首屏布局（当前 `10.0.0.124:5555` 连不上），然后做 P0 收藏进阶。
