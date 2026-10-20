@@ -966,3 +966,13 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - 新增 `web/sources.example.json`、`web/README-sources.md`、`web/test/sources.test.mjs`。Apple CMS 详情、剧集组和播放地址已用模拟响应覆盖测试，尚未配置真实第二来源。
 - Web 验证：`pnpm run check` 通过；`pnpm test` 在允许本地回环监听后为 19/19 通过；本地浏览器预览正常显示首页与初始焦点，`/api/sources` 返回 Hdao 来源。
 - 本轮未改原生 Android、未构建或发布 APK、未提交或推送；根目录原有未跟踪 `Hazix-TV-v3.7.1.apk` 未触碰。后续应先用真实且获授权的 CMS 来源验证搜索/详情/剧集，再做来源管理 UI、聚合去重和原生端接入。
+
+## 2026-10-21 · DSH：全局复核、封存多源、回主线
+
+- 用户决定：Web 多影视源第一阶段先封存，回到主线；根目录重复的 `Hazix-TV-v3.7.1.apk` 删除。
+- 复核结果：`web` 的 `pnpm run check` 通过，`pnpm test` **19/19** 通过；临时预览上 `/api/sources`、首页、分类、详情、搜索均返回正确结构，页面注入版本为 `3.7.5`。`dist/` 中 v3.7.5 双 APK 的 SHA-256 与 `SHA256SUMS.txt` 一致，v1/v2 签名证书仍为 `6f4c4390…f9f1`。
+- **更正 9/25 的环境结论**：在当前沙箱里 `:nativeapp:testDebugUnitTest` 仍然失败，报错与 9/21 记录相同——中文路径被转义成 `ChatGPTu9879…`，Kotlin 插件 classpath 指向不存在的路径；Kotlin 守护进程也无法写 `~/Library`。9/25 的“原项目路径直接编译成功”不可复现，不能当作稳定能力；改 Kotlin 仍应走云端 CI 或 ASCII 沙箱。
+- 多源第一阶段已作为独立提交留在 `main`：`65b4a93 feat(web): add multi-source catalog adapters`。默认源仍是 Hdao，只有 Web 后端，没有来源选择 UI、真实第二来源或原生接入；暂不继续，等主线稳定后再评估。
+- 根目录重复 APK 已按 SHA-256 核对后删除（`72ee110e…`，与 `dist/Hazix-TV-v3.7.1.apk` 逐字节相同）；`dist/` 中的版本化 APK 未动。
+- 已记录、本轮未修的两个小坑：两个 Gradle 模块的版本默认值仍是 `3.3.9/17`，本地不带 `-P` 构建会产出低于已安装版本的包；`web/server.mjs` 的 `apiTarget()` 已不被生产代码调用，但 `data.test.mjs` 仍在断言它，测试守的是死代码。
+- 主线下一步：先在 TCL 真机验收 v3.7.5 的首屏布局，再做 P0 收藏进阶。
