@@ -4,8 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse("3.3.9")
-val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(17)
+val defaultVersionName: String by rootProject.extra
+val defaultVersionCode: Int by rootProject.extra
+val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse(defaultVersionName)
+val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(defaultVersionCode)
 val releaseKeystorePath = providers.environmentVariable("HAZIX_RELEASE_KEYSTORE")
     .orElse("${System.getProperty("user.home")}/.android/debug.keystore")
 // Optional LAN release mirror (the NAS). Empty by default, which keeps the

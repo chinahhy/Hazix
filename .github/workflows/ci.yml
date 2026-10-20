@@ -142,6 +142,12 @@ jobs:
         env:
           EXPECTED_SIGNER_SHA256: 6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1
         run: |
+          CHANGELOG_VERSION=$(sed -n 's/^## \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' CHANGELOG.md | head -1)
+          if [[ -z "${CHANGELOG_VERSION}" ]]; then
+            echo "::error::CHANGELOG.md has no version heading"
+            exit 1
+          fi
+
           mkdir -p ci-apks
           cp nativeapp/build/outputs/apk/release/nativeapp-release.apk "ci-apks/Hazix-TV-${GITHUB_SHA::7}.apk"
           cp mobileapp/build/outputs/apk/release/mobileapp-release.apk "ci-apks/Hazix-Mobile-${GITHUB_SHA::7}.apk"
@@ -154,6 +160,16 @@ jobs:
             echo "${APK} signer: ${SIGNER}"
             if [[ "${SIGNER}" != "${EXPECTED_SIGNER_SHA256}" ]]; then
               echo "::error::${APK} is not signed with the release key"
+              exit 1
+            fi
+
+            APK_VERSION=$(
+              "${ANDROID_HOME}/build-tools/35.0.0/aapt" dump badging "${APK}" |
+                sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p"
+            )
+            echo "${APK} version: ${APK_VERSION}"
+            if [[ "${APK_VERSION}" != "${CHANGELOG_VERSION}" ]]; then
+              echo "::error::${APK} version ${APK_VERSION} does not match CHANGELOG ${CHANGELOG_VERSION}"
               exit 1
             fi
           done

@@ -87,6 +87,9 @@ mobileapp/build/outputs/apk/release/mobileapp-release.apk
   -PVERSION_NAME=3.4.0 -PVERSION_CODE=3004000
 ```
 
+不传这两个属性时，两个模块都会取 `CHANGELOG.md` 顶部的最新版本（例如 `3.7.5` → `3007005`），
+因此本地和 CI 构建的包默认就能覆盖安装当前正式版；正式发版仍由标签显式传入。
+
 release 构建使用 `HAZIX_RELEASE_KEYSTORE` 指定的签名（默认 `~/.android/debug.keystore`）。
 这只是个人侧载用的便利密钥：现有安装就是用这把钥匙签的，因此它必须保持不变，否则升级会被系统拒绝。
 正式对外分发前应改用私有 release keystore。

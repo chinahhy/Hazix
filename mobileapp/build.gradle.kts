@@ -7,9 +7,12 @@ plugins {
 // The TV app and the phone app ship as one release. They share a version number
 // and a signing key so that both can be installed over an older build, and so
 // the TV in-app updater keeps a working signature chain. The release workflow
-// passes -PVERSION_NAME/-VERSION_CODE derived from the release tag.
-val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse("3.3.9")
-val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(17)
+// passes -PVERSION_NAME/-VERSION_CODE derived from the release tag; without
+// them, both modules fall back to the version at the top of CHANGELOG.md.
+val defaultVersionName: String by rootProject.extra
+val defaultVersionCode: Int by rootProject.extra
+val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse(defaultVersionName)
+val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(defaultVersionCode)
 val releaseKeystorePath = providers.environmentVariable("HAZIX_RELEASE_KEYSTORE")
     .orElse("${System.getProperty("user.home")}/.android/debug.keystore")
 
