@@ -1,0 +1,21 @@
+[
+  {
+    "id": "hdao",
+    "name": "Hazix 主片库",
+    "type": "hdao",
+    "baseUrl": "https://hdao.tv/api",
+    "enabled": true
+  },
+  {
+    "id": "my-cms",
+    "name": "我的 CMS 源",
+    "type": "apple-cms",
+    "baseUrl": "https://example.com/provide/vod",
+    "enabled": false,
+    "categoryMap": {
+      "movie": 1,
+      "tv": 2,
+      "anime": 3
+    }
+  }
+]

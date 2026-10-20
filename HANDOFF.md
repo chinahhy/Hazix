@@ -958,3 +958,11 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - TV 与手机 APK 已从家庭 NAS 发布镜像下载、按 GitHub Release 的 `SHA256SUMS.txt` 核对并归档到 `dist/`；旧版 APK 未覆盖或删除。TV 2,833,977 字节，SHA-256 `9e3d05dced940c7e83032e0ce0abaeed5507ba878e2edc9e0d0f9c0d83263842`；手机 2,764,473 字节，SHA-256 `d14aa3cb6a833683e10a9a578848acac981cfdaf88a41994d0f63fff6de7dfdc`。
 - `aapt dump badging`：TV `tv.hdao.app`、手机 `tv.hdao.mobile`，均为 versionName `3.7.5` / versionCode `3007005`。`apksigner verify --min-sdk-version 23`：v1/v2 签名均有效，证书 SHA-256 为既有升级链 `6f4c4390f681e237d466ab0d4bfb7f43305f8c24d169d4a4320d2a041f3fd9f1`。
 - `dist/SHA256SUMS.txt` 已追加本版校验值。下载产生的项目内临时目录和残缺直连文件已清理；原有根目录未跟踪 `Hazix-TV-v3.7.1.apk` 原样保留。**未在 TCL 真机安装或验证新版本运行时行为**。
+
+## 2026-09-28 · Codex：Web 多影视源框架第一阶段
+
+- 新增 `web/sources.mjs`：配置校验、来源注册表、Hdao 适配器、Apple CMS V10 风格适配器、来源标注与公开来源元数据；仅允许配置中的 HTTP(S) 来源，不提供任意 URL 代理、登录绕过或反爬逻辑。
+- `web/server.mjs`：新增 `/api/sources`，并为 `/api/vods/featured`、`/api/vods`、`/api/vods/:id`、`/api/search` 增加 `source` 选择；默认保持 Hdao 行为，来源缓存键包含来源 ID。
+- 新增 `web/sources.example.json`、`web/README-sources.md`、`web/test/sources.test.mjs`。Apple CMS 详情、剧集组和播放地址已用模拟响应覆盖测试，尚未配置真实第二来源。
+- Web 验证：`pnpm run check` 通过；`pnpm test` 在允许本地回环监听后为 19/19 通过；本地浏览器预览正常显示首页与初始焦点，`/api/sources` 返回 Hdao 来源。
+- 本轮未改原生 Android、未构建或发布 APK、未提交或推送；根目录原有未跟踪 `Hazix-TV-v3.7.1.apk` 未触碰。后续应先用真实且获授权的 CMS 来源验证搜索/详情/剧集，再做来源管理 UI、聚合去重和原生端接入。

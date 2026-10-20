@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import { annotateSource, createSourceRegistry, publicSourceList, sourceForRequest } from './sources.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('./public/', import.meta.url)));
 const hlsBundle = fileURLToPath(new URL('./node_modules/hls.js/dist/hls.min.js', import.meta.url));
@@ -41,6 +42,7 @@ export const appVersion = () => (appVersionPromise ??= resolveAppVersion());
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const cache = new Map();
 const ratingCache = new Map();
+export const sourceRegistry = createSourceRegistry();
 
 const validScore = value => {
   const score = Number(value);
@@ -132,14 +134,28 @@ export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
     if (url.pathname.startsWith('/api/')) {
-      const target = apiTarget(url);
-      if (!target) return json(res, 404, { error: '没有这个接口' });
-      const key = target.href;
+      if (url.pathname === '/api/sources') return json(res, 200, { sources: publicSourceList(sourceRegistry) });
+      const isFeatured = url.pathname === '/api/vods/featured';
+      const isCategory = url.pathname === '/api/vods' && url.searchParams.has('category');
+      const isDetail = /^\/api\/vods\/\d+$/.test(url.pathname);
+      const isSearch = url.pathname === '/api/search';
+      if (!isFeatured && !isCategory && !isDetail && !isSearch) return json(res, 404, { error: '没有这个接口' });
+      const source = sourceForRequest(sourceRegistry, url);
+      if (!source) return json(res, 404, { error: '没有这个影视源' });
+      const key = `${source.id}:${url.pathname}${url.search}`;
       const saved = cache.get(key);
       if (saved && Date.now() - saved.at < 60_000) return json(res, 200, saved.data);
-      const upstream = await fetch(target, { headers: { Accept: 'application/json', 'User-Agent': 'Hdao-WebPreview/1.0' }, signal: AbortSignal.timeout(20_000), redirect: 'error' });
-      if (!upstream.ok) return json(res, 502, { error: `片库服务返回 ${upstream.status}` });
-      const data = await enrichMissingRatings(await upstream.json());
+      const page = Math.max(1, Math.min(500, Number(url.searchParams.get('page')) || 1));
+      const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit')) || 40));
+      const data = isFeatured
+        ? await source.featured()
+        : isCategory
+          ? await source.category({ category: url.searchParams.get('category').slice(0, 80), page, limit })
+          : isDetail
+            ? await source.detail({ id: url.pathname.split('/').pop() })
+            : await source.search({ query: (url.searchParams.get('q') || '').slice(0, 200) });
+      annotateSource(data, source);
+      if (source.type === 'hdao') await enrichMissingRatings(data);
       if (cache.size > 150) cache.delete(cache.keys().next().value);
       cache.set(key, { at: Date.now(), data });
       return json(res, 200, data);
