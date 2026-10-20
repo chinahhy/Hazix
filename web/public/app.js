@@ -55,8 +55,9 @@ async function detail(id) {
 function nav(selected, nested) {
   document.querySelector('#nav').innerHTML = `<a class="brand" href="#home" aria-label="首页"><img src="/brand.png" alt=""></a>
     <nav class="desktop-nav" aria-label="主导航">${[['home', '首页'], ...categories].map(([key, label]) => `<a href="#${key === 'home' ? 'home' : `category/${key}`}" ${key === selected ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-    <div class="nav-actions"><button class="update-link" type="button" data-update>${icon('update')}<span>检查更新</span></button><a class="search-link" href="#search" aria-label="搜索">${icon('search')}</a><a class="profile-link" href="#my" aria-label="我的">${icon('user')}</a></div>
-    <nav class="mobile-nav" aria-label="手机导航">${[['home', '首页', 'home', '#home'], ['movie', '影视', 'movie', '#category/movie'], ['tv', '剧集', 'tv', '#category/tv']].map(([key, label, glyph, href]) => `<a href="${href}" ${key === selected ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span></a>`).join('')}</nav>`;
+    <div class="nav-actions"><button class="update-link" type="button" data-update aria-label="检查更新">${icon('update')}<span>检查更新</span></button><a class="search-link" href="#search" aria-label="搜索">${icon('search')}</a><a class="profile-link" href="#my" aria-label="我的">${icon('user')}</a></div>
+    <nav class="mobile-categories" aria-label="影视分类">${categories.map(([key, label]) => `<a href="#category/${key}" ${key === selected ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+    <nav class="mobile-nav" aria-label="手机导航">${[['home', '首页', 'home', '#home'], ['movie', '电影', 'movie', '#category/movie'], ['tv', '剧集', 'tv', '#category/tv']].map(([key, label, glyph, href]) => `<a href="${href}" ${key === selected ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span></a>`).join('')}</nav>`;
   document.body.classList.toggle('nested', nested);
 }
 const poster = item => imageURL(item.tmdbPoster || item.coverUrl);
@@ -75,13 +76,13 @@ function card(item, options = {}) {
   const art = landscape ? (backdrop(item) || poster(item)) : (poster(item) || backdrop(item));
   const rating = ratingOf(item);
   const meta = [item.year, item.genres || item.area].filter(Boolean).slice(0, 3).map(esc).join(' · ');
-  const tail = entry
+  const tail = `<span class="card-title">${esc(item.title)}</span>${entry
     ? `<span class="card-sub">${esc(entry.episodeName)} · 已看 ${Math.floor(entry.position / 60)} 分钟</span>`
-    : (landscape ? '' : `<span class="card-title">${esc(item.title)}</span>`);
+    : ''}`;
   return `<a class="poster-card ${landscape ? 'landscape-card' : ''} ${isFeatured ? 'featured-card' : ''} ${entry ? 'continue-card' : ''}" href="${url}" data-id="${idOf(item)}" aria-label="${esc(item.title)}${rating ? `，评分 ${rating.score}` : ''}${entry ? `，最近观看 ${esc(entry.episodeName)}` : '，查看详情'}">
     <div class="poster-art">${art ? `<img src="${esc(art)}" alt="" loading="${isFeatured ? 'eager' : 'lazy'}">` : '<span class="no-poster">暂无图片</span>'}
     ${rating ? `<span class="card-score">${esc(rating.score)}</span>` : ''}
-    ${landscape ? `<div class="card-hover"><div class="card-hover-actions"><span class="round-button">${icon('play')}</span><span class="round-button ghost">${icon('info')}</span></div><div class="card-hover-copy"><strong>${esc(item.title)}</strong>${rating || meta ? `<span class="card-hover-meta">${rating ? `<em>${rating.score}</em>` : ''}${meta}</span>` : ''}</div></div>` : ''}
+    ${landscape ? `<div class="card-hover"><span class="card-hover-hint">${icon(entry ? 'play' : 'info')}${entry ? '继续观看' : '查看详情'}</span>${meta ? `<span class="card-hover-meta">${meta}</span>` : ''}</div>` : ''}
     ${entry ? `<div class="watch-bar"><i style="width:${entry.duration > 0 ? Math.min(100, entry.position / entry.duration * 100) : 0}%"></i></div>` : ''}</div>
     ${tail}</a>`;
 }
@@ -128,6 +129,7 @@ async function home(stamp) {
   }
 
   function startPreview(item) {
+    if (!matchMedia('(min-width: 701px)').matches) return;
     const vodId = idOf(item);
     if (!vodId || previewVodId === vodId) return;
     clearPreview(false);
@@ -184,7 +186,18 @@ async function home(stamp) {
     if (scenes.length > 2) scenes[0].remove();
     content.querySelector('.hero-copy').innerHTML = `<h1>${esc(item.title)}</h1>${meta(item)}<p class="hero-description">${esc(summary(item))}</p><div class="actions hero-actions"><a class="button primary" href="#play/${idOf(item)}/0">${icon('play')}播放</a><a class="button secondary" href="#detail/${idOf(item)}">${icon('info')}<span class="desktop-info-label">更多信息</span><span class="mobile-info-label">详情</span></a></div>`;
     content.querySelector('#hero-count').textContent = `${String(selected + 1).padStart(2, '0')} / ${String(heroes.length).padStart(2, '0')}`;
-    content.querySelectorAll('.featured-card').forEach((link, i) => link.classList.toggle('selected', i === selected));
+    content.querySelectorAll('.featured-card').forEach((link, i) => {
+      link.classList.toggle('selected', i === selected);
+      if (i === selected) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+    });
+    const selectedCard = content.querySelector('.featured-card.selected');
+    const rail = content.querySelector('.featured-rail');
+    const box = selectedCard.getBoundingClientRect(), bounds = rail.getBoundingClientRect();
+    const gutter = parseFloat(getComputedStyle(rail).paddingLeft);
+    if (box.left < bounds.left + gutter || box.right > bounds.right - gutter) {
+      rail.scrollBy({ left: box.left - bounds.left - gutter, behavior: 'instant' });
+    }
     bindImageErrors();
   }
   function activate(index) {
@@ -213,7 +226,8 @@ async function home(stamp) {
   }, { passive: true });
   heroTimer = setInterval(() => {
     const shelfHasFocus = content.querySelector('.featured-rail')?.contains(document.activeElement);
-    if (!document.hidden && !hero.matches(':hover') && !shelfHasFocus && !matchMedia('(prefers-reduced-motion: reduce)').matches) show(selected + 1);
+    const heroHasFocus = hero.contains(document.activeElement);
+    if (!document.hidden && !document.querySelector('#dialog') && !hero.matches(':hover') && !heroHasFocus && !shelfHasFocus && !matchMedia('(prefers-reduced-motion: reduce)').matches) show(selected + 1);
   }, 8000);
   cleanup = () => {
     clearPreview();
@@ -230,23 +244,45 @@ function playKeyFeedback(event) {
   else if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') playConfirmSound();
   else playMoveSound();
 }
-function closeDialog() {
+const focusableSelector = 'a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
+const focusableElements = root => [...root.querySelectorAll(focusableSelector)].filter(el =>
+  el.getClientRects().length && !el.closest('[inert], .skip') && getComputedStyle(el).visibility !== 'hidden');
+let dialogTrigger = null, dialogBackground = [];
+function closeDialog({ restoreFocus = true } = {}) {
   document.querySelector('#dialog')?.remove();
+  for (const [element, wasInert] of dialogBackground) element.inert = wasInert;
+  dialogBackground = [];
+  const trigger = dialogTrigger;
+  dialogTrigger = null;
+  if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+}
+function focusDialog(modal) {
+  modal.querySelector('h3')?.setAttribute('id', 'dialog-title');
+  const target = modal.querySelector('.dialog-actions a[href], .dialog-actions button:not(:disabled)') || modal.querySelector('.dialog-close');
+  (target || modal).focus({ preventScroll: true });
 }
 function dialog(html) {
-  closeDialog();
-  document.body.insertAdjacentHTML('beforeend', `<div class="dialog-backdrop" id="dialog" role="dialog" aria-modal="true"><div class="dialog-card"><button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${html}</div></div>`);
-  document.querySelector('#dialog .dialog-card button:not(.dialog-close)')?.focus();
+  const trigger = dialogTrigger || document.activeElement;
+  closeDialog({ restoreFocus: false });
+  dialogTrigger = trigger;
+  document.body.insertAdjacentHTML('beforeend', `<div class="dialog-backdrop" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1"><div class="dialog-card"><button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${html}</div></div>`);
+  const modal = document.querySelector('#dialog');
+  dialogBackground = [...document.body.children].filter(el => el !== modal && !el.matches('script, style')).map(el => [el, el.inert]);
+  for (const [element] of dialogBackground) element.inert = true;
+  focusDialog(modal);
+  return modal;
 }
 async function checkUpdate() {
-  dialog(updateCheckingHTML(APP_VERSION));
+  const modal = dialog(updateCheckingHTML(APP_VERSION));
   let latest = null;
   try {
     const response = await fetch(RELEASE_API, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/vnd.github+json' } });
     if (response.ok) latest = (await response.json()).tag_name || null;
   } catch { latest = null; }
-  const card = document.querySelector('#dialog .dialog-card');
-  if (card) card.innerHTML = `<button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${updateDialogHTML(latest, APP_VERSION)}`;
+  // A closed/older request must never overwrite a newly opened dialog.
+  if (!modal.isConnected) return;
+  modal.querySelector('.dialog-card').innerHTML = `<button class="dialog-close" type="button" data-dialog-close aria-label="关闭">✕</button>${updateDialogHTML(latest, APP_VERSION)}`;
+  focusDialog(modal);
 }
 function myPage() {  const entries = recentProgress(progress);
   content.innerHTML = `<section class="browse my-page"><h1>我的</h1><p class="page-intro">你的观看进度会安全保存在这台设备上。</p>${entries.length ? `<div class="poster-grid landscape-grid">${entries.map(entry => card(entry.item, { entry, landscape: true })).join('')}</div>` : '<p class="empty-progress">还没有观看记录。播放一部片子，这里就会记住你看到哪里。</p>'}</section>`;
@@ -332,9 +368,26 @@ async function detailPage(id, stamp) {
   if (stamp !== epoch) return;
   const item = data.item, bg = backdrop(item);
   content.innerHTML = `<article class="detail-page">${bg ? `<div class="detail-backdrop"><img src="${esc(bg)}" alt=""></div>` : ''}${backButton()}
-    <div class="detail-summary"><img class="detail-poster" src="${esc(poster(item))}" alt="${esc(item.title)}海报"><div><h1>${esc(item.title)}</h1>${meta(item)}<p class="synopsis">${esc(summary(item))}</p><p class="credits">导演 · ${esc(item.director || '暂无资料')}</p><p class="credits">主演 · ${esc(item.actors || '暂无资料')}</p><div class="actions">${data.episodes.length ? `<a class="button primary" href="#play/${id}/0">${icon('play')}立即播放</a>` : '<span class="empty-progress">暂时没有可播放的剧集</span>'}</div></div></div>
+    <div class="detail-summary"><img class="detail-poster" src="${esc(poster(item))}" alt="${esc(item.title)}海报"><div class="detail-copy"><h1>${esc(item.title)}</h1>${meta(item)}<div class="actions detail-actions">${data.episodes.length ? `<a class="button primary" href="#play/${id}/0">${icon('play')}立即播放</a>` : '<span class="page-intro">暂时没有可播放的剧集</span>'}</div><div class="synopsis-block"><p class="synopsis" id="detail-synopsis">${esc(summary(item))}</p><button class="text-button synopsis-toggle" type="button" aria-expanded="false" aria-controls="detail-synopsis" hidden>展开简介</button></div><p class="credits">导演 · ${esc(item.director || '暂无资料')}</p><p class="credits">主演 · ${esc(item.actors || '暂无资料')}</p></div></div>
     <section class="episodes"><div class="row-heading"><h2>选集</h2><span>共 ${data.episodes.length} 集</span></div><div class="episode-grid">${data.episodes.map((episode, index) => `<a href="#play/${id}/${index}" class="episode">${esc(episode.name)}</a>`).join('')}</div></section>
     ${(data.related || []).length ? rail('你可能还喜欢', data.related.slice(0, 12)) : ''}</article>`;
+  const block = content.querySelector('.synopsis-block');
+  const synopsis = block.querySelector('.synopsis');
+  const toggle = block.querySelector('.synopsis-toggle');
+  const updateToggle = () => {
+    toggle.hidden = !matchMedia('(max-width: 700px)').matches ||
+      (!block.classList.contains('expanded') && synopsis.scrollHeight <= synopsis.clientHeight + 1);
+  };
+  toggle.addEventListener('click', () => {
+    const expanded = block.classList.toggle('expanded');
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.textContent = expanded ? '收起简介' : '展开简介';
+    updateToggle();
+  });
+  const observer = new ResizeObserver(updateToggle);
+  observer.observe(synopsis);
+  updateToggle();
+  cleanup = () => observer.disconnect();
 }
 function persist(entry) {
   const key = `${entry.vodId}:${entry.episodeId}`;
@@ -406,6 +459,7 @@ async function playerPage(id, index, stamp) {
 function goBack() { if (history.state?.hdao) history.back(); else location.hash = '#home'; }
 async function render() {
   const stamp = ++epoch;
+  closeDialog({ restoreFocus: false });
   clearInterval(heroTimer); cleanup(); cleanup = () => {};
   const parts = location.hash.slice(1).split('/'), page = parts[0] || 'home';
   nav(page === 'category' ? parts[1] : page, ['detail', 'play'].includes(page));
@@ -444,18 +498,27 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   playKeyFeedback(event);
-  if (event.key === 'Escape') {
+  const modal = document.querySelector('#dialog');
+  if (event.key === 'Escape' || (modal && ['Backspace', 'BrowserBack'].includes(event.key))) {
     event.preventDefault();
-    if (document.querySelector('#dialog')) closeDialog(); else goBack();
+    if (modal) closeDialog(); else goBack();
+    return;
+  }
+  const candidates = focusableElements(modal || document);
+  const current = document.activeElement;
+  if (modal && event.key === 'Tab') {
+    event.preventDefault();
+    const index = candidates.indexOf(current);
+    const next = (index + (event.shiftKey ? -1 : 1) + candidates.length) % candidates.length;
+    (candidates[next] || modal).focus({ preventScroll: true });
     return;
   }
   if (event.target.matches('input, textarea, select, video')) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-  const candidates = [...document.querySelectorAll('a[href],button:not(:disabled),input,[tabindex="0"]')].filter(el => el.getClientRects().length && !el.closest('.skip'));
+  if (modal) event.preventDefault();
   if (!candidates.length) return;
-  const current = document.activeElement;
-  if (!candidates.includes(current)) { event.preventDefault(); (content.querySelector('a,button,input') || candidates[0]).focus(); return; }
-  if (event.key === 'ArrowDown' && current.matches('.featured-card')) {
+  if (!candidates.includes(current)) { event.preventDefault(); (modal ? candidates[0] : focusableElements(content)[0] || candidates[0]).focus(); return; }
+  if (!modal && event.key === 'ArrowDown' && current.matches('.featured-card')) {
     const firstContinue = content.querySelector('.continue-card, .continue-empty');
     if (firstContinue) {
       event.preventDefault();
@@ -473,6 +536,10 @@ document.addEventListener('keydown', event => {
     return { el, forward, cost: forward + cross * 4 };
   }).filter(v => v.forward > 5).sort((a, b) => a.cost - b.cost);
   if (options[0]) { event.preventDefault(); options[0].el.focus({ preventScroll: true }); options[0].el.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'nearest' }); }
+});
+document.addEventListener('focusin', event => {
+  const modal = document.querySelector('#dialog');
+  if (modal && !modal.contains(event.target)) focusDialog(modal);
 });
 window.addEventListener('hashchange', render);
 if (!location.hash) history.replaceState({ hdao: true }, '', '#home');

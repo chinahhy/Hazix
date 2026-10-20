@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node server.mjs",
     "check": "node --check server.mjs && for file in public/*.js; do node --check \"$file\" || exit 1; done",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:ui": "node --test test/ui.browser.mjs"
   },
   "engines": {
     "node": ">=22"

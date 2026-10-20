@@ -985,3 +985,41 @@ export JAVA_HOME=/tmp/hdao-jdk GRADLE_USER_HOME=/tmp/hdao-gh ANDROID_HOME=/tmp/h
 - 验证：本地 `:nativeapp:processDebugMainManifest` / `:mobileapp:processDebugMainManifest` 产出 versionCode `3007005` 与 versionName `3.7.5-debug`，release manifest 为 `3.7.5`；CI run `39498084962` 三个 job 全绿；从该 run 下载的 TV/手机产物均为 versionName `3.7.5` / versionCode `3007005`。
 - 仍未修：`web/server.mjs` 的 `apiTarget()` 已不被生产代码调用，但 `web/test/data.test.mjs` 仍在断言它。留作下一轮小清理。
 - 主线下一步不变：TCL 真机验收 v3.7.5 首屏布局（当前 `10.0.0.124:5555` 连不上），然后做 P0 收藏进阶。
+
+## 2026-10-21 · DSH：落实网页 UI 层级与交互评审
+
+用户批准沿用当前深色、白灰文字、巨幕和海报行风格，按优先级实施评审建议。本轮**只改网页预览与测试，没有改原生 Android、构建 APK、升级依赖或继续多源工作**。两位具名专家本轮执行均返回 error；确认没有工作成员或遗留改动后，主会话直接实施并验证，不能称为专家复验通过。
+
+### 修改范围
+
+- [app.css](<web/public/app.css>)：TV 元信息18–20px、简介20–22px、片名18px、评分16–18px；首屏不再叠加巨幕的固定最小高度，海报尺寸随可用高度调整，长标题与简介限制行数。继续保留“介绍与海报占首屏，最近观看在首屏以下”的既有契约。
+- [app.js](<web/public/app.js>)：手机补齐六分类条；详情播放前置、手机播放全宽、简介三行可展开；续播片名常显；卡片改为一个明确的“查看详情／继续观看”入口，删除两个不可独立操作的假按钮。推荐卡增加持续选中状态与横向可见性同步；手机不启动自动视频预览。
+- 弹窗同在 [app.js](<web/public/app.js>)：查询时聚焦关闭按钮，结果到达后聚焦操作，背景 inert，Tab/方向键留在弹窗内，关闭恢复入口焦点；旧请求不能覆盖新弹窗，离开页面会清理弹窗。
+- 手机细节：320px 分类网格两列、片名14px、主要点击区域至少44×44px；底部导航高度与内容预留同时计算安全区。[app.html](<web/public/app.html>) 增加 viewport-fit=cover。
+- 新增 [ui.browser.mjs](<web/test/ui.browser.mjs>) 与 [test:ui 命令](<web/package.json>)：直接使用本机 Chrome + CDP，无新增依赖；导入原有预览服务器在随机回环端口测试，结束自动关闭服务、浏览器并删除本轮专用临时用户目录。缺 Chrome 时明确跳过，不能算视觉通过；可通过 CHROME_PATH 指定浏览器。
+- 本轮工具失败与已验证的测试隔离、遮挡检查经验记录在 [.learnings](<.learnings/LEARNINGS.md>)，未改项目约定。
+
+### 验证与证据
+
+以下在 web 工作目录中使用 load_workspace_dependencies 返回的 Node v24.21.0 与 pnpm 路径运行（Node bin 加入本次命令 PATH）：
+
+```sh
+pnpm run check
+pnpm test
+node --check test/ui.browser.mjs
+UI_LIVE_SMOKE=1 UI_SCREENSHOT_DIR=../.tooling/tmp/ui-review-20261021 pnpm run test:ui
+```
+
+- 语法检查、19项既有单测：**全部通过，退出码0**。
+- 浏览器：**17个子场景通过**（Node 连同父用例报告18/18，0失败、0跳过，退出码0）。尺寸为1920×1080、1366×768、1024×768、320×568、390×844、414×896；用两行长标题和220字简介确认按钮、海报、片名不被挤出首屏。
+- 还覆盖：手机三行简介展开/收起与全宽播放、六分类可达、320px两列、真实模拟34px底部安全区、主要操作44×44px、推荐选中、手机无自动预览请求、有/无记录时下键到达最近观看、弹窗查询/三种结果的焦点封闭与恢复、旧请求竞态、图片失败占位。
+- 可重复布局与交互用例使用显式测试数据，不代表真实片源播放已验证。最后另行关闭所有数据/图片拦截，对真实片库执行TV与手机首页渲染检查；未出现浏览器运行时异常。
+- 实际打开查看了新截图。最终保留 [TV首页](<preview/ui-review-20261021/tv-home.png>)（1920×1080）、[手机首页](<preview/ui-review-20261021/phone-home.png>)（390×844），均为真实片库，不是测试海报。两图仅本地保留，preview 目录仍被 gitignore。
+- 浏览器首轮发现手机巨幕固定560px背景会盖住海报行标题，已改为随巨幕填充；回归增加 elementFromPoint 命中检查，防止坐标正确但控件实际被盖住。
+- 最终 git diff --check 通过。测试截图中间产物和专用 Chrome 临时目录已清理，仅保留上述两张最终效果图。
+
+### 边界与下一步
+
+- **未验证**：Android 真机显示、65寸电视远距阅读、真实遥控器手感与实际媒体播放；浏览器测试不能替代这些。
+- 原生详情页相关推荐左边距及跨原生实现的颜色/圆角统一**尚未修改**；先等用户确认本轮网页效果，再同步原生源码。没有改 CHANGELOG 版本或 dist 中任何产物。
+- 本轮仅本地提交、未推送：当前 [CI](<.github/workflows/ci.yml#L103-L139>) 在 main 推送时会自动构建双 APK，用户尚未批准本轮打包，不能为了推送网页改动顺带触发构建。
