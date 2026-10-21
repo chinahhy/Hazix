@@ -61,3 +61,30 @@ CDP 的 Page.navigate 只改变 hash 时不会新建文档；UI 用例隔离要�
 - **Notes**: 六个视口的控件命中检查通过，手机截图已重新查看。
 
 ---
+
+## [LRN-20261021-003] correction
+
+**Logged**: 2026-10-21T07:59:12+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+截图和临时验收服务不等于用户可打开的网页预览，交付时必须明确访问入口和运行状态。
+
+### Details
+用户反馈看不到网页。上一轮测试完成即关闭服务，只提供截图；4173端口确实没有监听。经用户批准启动原有预览并保持运行后，页面、资源及真实推荐接口均返回200。
+
+### Suggested Action
+交付可交互预览前先取得常驻服务授权，使用托管后台任务启动，验证准确URL，再给可点击链接；仅截图或临时测试时明确说明没有在线预览。不得为解决访问问题擅自绑定公网或改为局域网开放。
+
+### Metadata
+- Source: user_feedback
+- Related Files: web/server.mjs, HANDOFF.md
+- Tags: preview, handoff, service-lifecycle
+
+### Resolution
+- **Resolved**: 2026-10-21
+- **Notes**: 原有127.0.0.1:4173预览经授权运行，TV/手机入口及6条真实推荐已验证。
+
+---
