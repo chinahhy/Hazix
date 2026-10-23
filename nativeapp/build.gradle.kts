@@ -84,7 +84,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.tv:tv-material:1.0.0")
+    implementation("androidx.tv:tv-material:1.1.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     implementation(platform("com.squareup.okhttp3:okhttp-bom:4.12.0"))
