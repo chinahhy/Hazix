@@ -1058,3 +1058,55 @@ UI_LIVE_SMOKE=1 UI_SCREENSHOT_DIR=../.tooling/tmp/ui-review-20261021 pnpm run te
 - 推送前应确认 CI 的 `Unit tests` 步骤在没有 `-PhazixMirrorBase` 时仍通过（应只剩版本、校验和与 URL 校验类测试）。
 - 另一个会话（2026-10-21 UI 同步与 3.8.0 准备）留在工作区的改动本轮**没有提交、没有改动**；其中 [release-apks.yml](<.github/workflows/release-apks.yml>) 与本轮同文件，提交时先把该文件还原到 HEAD、只提交镜像删除，再用 `git apply --3way` 把它的改动放回工作区。
 - 未改 CHANGELOG：工作区里那份未提交的 3.8.0 段落与另一会话纠缠，等它提交后再补一条「更新只走 GitHub」。
+
+## 2026-10-23 · DSH：本地编译旁路 + 发布 3.8.0（latest）
+
+用户要求「按照最新结构来构建 latest」，并把 GitHub 仓库变量 `NAS_MIRROR_BASE` 清掉（已执行 `gh variable delete`，现在变量列表为空）。本轮把上一会话（2026-10-21）留在工作区的 UI 同步改动整理、修好编译错误后提交并发布。
+
+### 本地首次真正编译通过 Kotlin（可复用，推翻本文件第 1 节的结论）
+
+第 1 节说「中文路径导致本地无法编译 Kotlin」，实测并非无解：**把源码复制到纯 ASCII 路径再编就行**，`.tooling/` 里的工具链一直可用。
+
+```bash
+W=/tmp/hazix-build
+rsync -a --exclude=.tooling --exclude=.git --exclude=dist --exclude=node_modules \
+  --exclude=build --exclude=.gradle --exclude='*.apk' . "$W/src/"
+ditto .tooling/gradle-home "$W/gradle-home"          # 不要用 cp -cR
+ln -sfn "$PWD/.tooling/android-sdk" /tmp/android-sdk-ascii
+ln -sfn "$PWD/.tooling/jdk/jdk-17.0.20.1+1/Contents/Home" /tmp/jdk17-ascii
+cd "$W/src" && GRADLE_USER_HOME="$W/gradle-home" JAVA_HOME=/tmp/jdk17-ascii \
+  ANDROID_HOME=/tmp/android-sdk-ascii ./gradlew :nativeapp:testDebugUnitTest \
+  :mobileapp:testDebugUnitTest :nativeapp:lintRelease :mobileapp:lintRelease \
+  --no-daemon -PVERSION_NAME=3.8.0 -PVERSION_CODE=3008000 \
+  -Pkotlin.compiler.execution.strategy=in-process -Djava.io.tmpdir="$W/tmp"
+```
+
+三个必须踩过的坑：`cp -cR` 复制 gradle-home 会静默丢文件（报 `Could not read workspace metadata from …/kotlin-dsl/scripts/…/metadata.bin`），要用 `ditto`；SDK/JDK 的路径必须再经 ASCII 符号链接，否则 `android.jar` 进不了 classpath（报 `unresolved reference 'Context'`）；Kotlin 守护进程写不进 `~/Library/Application Support/kotlin/daemon`，必须加 `-Pkotlin.compiler.execution.strategy=in-process`。
+
+结果：`:nativeapp:testDebugUnitTest` 32 条里 31 条过，唯一失败的是真联网集成测试 `NetworkClientsTest > encryptedDnsBypassesFakeIpAndLoadsCatalog`（本机到 `hdao.tv` 被重置，`StreamResetException`，curl 同样超时）；`mobileapp` 单测与双端 `lintRelease` 全绿。同一条测试在 CI 上通过，判定为本机网络问题，未改测试。
+
+### 本轮修掉的代码问题（都是上一会话留下的）
+
+- [Screens.kt](<nativeapp/src/main/java/tv/hdao/app/ui/Screens.kt>)：`231`、`337` 行把 `FocusRequester.requestFocus()`（返回 Unit）当 Boolean 用，`.getOrDefault(false)` 改为 `.isSuccess`；`936` 行裸调 `requestFocus()` 包进 `runCatching`，避免未 attach 时崩详情页。[UpdateDialog.kt](<nativeapp/src/main/java/tv/hdao/app/ui/UpdateDialog.kt>) 的 `168` 行同样的 `.isSuccess` 修改。
+- [MobilePlayer.kt](<mobileapp/src/main/java/tv/hdao/mobile/ui/MobilePlayer.kt>)：`109` 行 `remember` 加 `detail.item.vodId` 作 key 并在读取处 coerce；`204` 行播放页根 Box 去掉 `.safeDrawingPadding()`（Scaffold 的 innerPadding 已经含横向和底部，重复内缩在横屏刘海机上是双倍黑边）。
+- [HdaoMobileApp.kt](<mobileapp/src/main/java/tv/hdao/mobile/ui/HdaoMobileApp.kt>)：`openCategory` 从 `openRoot` 改成 `navigate`（从卡片进分类页不再清空返回栈），底栏四个 tab 新增 `openTab` 走 `openRoot`。
+- [CHANGELOG.md](<CHANGELOG.md>)：3.8.0 日期改为 2026-10-23，电视端补一条「应用内更新只走 GitHub Release」。
+
+### 提交与发布
+
+- `3dfdbcf feat(ui): bring the TV and phone layouts in line with the reviewed 3.8.0 visuals`（14 文件）
+- `4698ead ci(release): run the phone unit tests and verify the packaged identity`（`release-apks.yml`：构建前跑双端单测、断言 versionCode、用 aapt/apksigner 校验包名/版本/证书）
+- 两者连同之前未推的 `5faeea9`、`14378b1`、`47249fc` 一起推到 `main`；CI run [39970053738](https://github.com/chinahhy/Hazix/actions/runs/39970053738) 三 job（Web checks / Android tests and lint / Build TV and mobile APKs）全绿。
+- 打 tag `v3.8.0`（指向 `4698ead`），release run [39970776566](https://github.com/chinahhy/Hazix/actions/runs/39970776566) 成功，GitHub Release 已发布并标为 latest：<https://github.com/chinahhy/Hazix/releases/tag/v3.8.0>
+
+### 归档与校验（已做）
+
+- `dist/Hazix-TV-v3.8.0.apk` 2,827,858 字节，SHA-256 `e33e96c9b7c6f0d0c08f2031de21e6306dbb799a6b390b4d7dfdeb0dea68e065`
+- `dist/Hazix-Mobile-v3.8.0.apk` 2,814,669 字节，SHA-256 `56d9273675c21822b20a376af22e4ce425a3ffb91606a657f81c7d537914fe1f`
+- 两个包都 `shasum -a 256 -c` 通过，并与 release 上的 `SHA256SUMS.txt` 一致；`aapt dump badging` 得到 `tv.hdao.app` / `tv.hdao.mobile`，versionName `3.8.0`、versionCode `3008000`；`apksigner verify --min-sdk-version 23` 退出 0，v1/v2 签名 true，证书 SHA-256 `6f4c4390…f9f1`（与 3.7.5 同一把，本机没有正式 keystore，CI 走 `HAZIX_RELEASE_KEYSTORE`，缺省回退 debug keystore 的既有约定）。
+- `dist/SHA256SUMS.txt` 追加 3.8.0 一组；`dist/*.apk` 被 `.gitignore:14` 忽略，只有校验文件入库。
+
+### 未验证 / 遗留
+
+- Android 真机（电视、手机）观感、遥控器/触摸手感、真实媒体播放**未验证**；浏览器预览与编译、单测、Lint 不能替代真机。
+- 审查中发现但本轮未改的：手机底栏在 anime/variety/documentary/short-drama 分类页没有选中态；`HdaoMobileApp.kt:322-333` 自动翻页与手动 advance 并存；`MobileLayout.kt:38-39` 的 shelfHeight/heroCopyHeight 只有测试读取；`styles.xml:5` 的 colorAccent 还是金色 `#F4C15D`；`UpdateDialog.kt:177` 纯进度态用 `.focusable()` 可能吞焦点，需真机确认；`HomeLayout.kt` 的魔数与 `HomeLayoutTest` 的精确浮点比较建议后续加容差。
