@@ -10,11 +10,6 @@ val releaseVersionName = providers.gradleProperty("VERSION_NAME").orElse(default
 val releaseVersionCode = providers.gradleProperty("VERSION_CODE").map { it.toInt() }.orElse(defaultVersionCode)
 val releaseKeystorePath = providers.environmentVariable("HAZIX_RELEASE_KEYSTORE")
     .orElse("${System.getProperty("user.home")}/.android/debug.keystore")
-// Optional LAN release mirror (the NAS). Empty by default, which keeps the
-// updater on GitHub; pass -PhazixMirrorBase=http://192.168.1.10:8088 to bake a
-// default address in. The updater still falls back to GitHub when it is down,
-// and a value written into the update_mirror preferences overrides this.
-val mirrorBaseUrl = providers.gradleProperty("hazixMirrorBase").orElse("")
 
 android {
     namespace = "tv.hdao.app"
@@ -26,7 +21,6 @@ android {
         targetSdk = 35
         versionCode = releaseVersionCode.get()
         versionName = releaseVersionName.get()
-        buildConfigField("String", "MIRROR_BASE_URL", "\"${mirrorBaseUrl.get()}\"")
     }
 
     signingConfigs {

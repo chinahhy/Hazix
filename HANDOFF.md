@@ -1029,3 +1029,32 @@ UI_LIVE_SMOKE=1 UI_SCREENSHOT_DIR=../.tooling/tmp/ui-review-20261021 pnpm run te
 - 用户反馈没有网页预览可打开；确认上一轮只有临时验收服务，4173端口无监听。经明确批准，使用原有 [预览服务](<web/server.mjs>) 保持本机运行，托管后台任务为 `bash-0b63880f72904c14`，未改应用代码、未绑定局域网或公网、未打包。
 - 入口：<http://127.0.0.1:4173/>；手机布局直达：<http://127.0.0.1:4173/?view=mobile>。只能在运行项目的这台Mac上访问。
 - 验证：首页、手机入口、应用页、CSS/JS、HLS资源均HTTP 200，真实片库推荐接口HTTP 200并返回6条推荐。服务在交付时仍运行；不要把截图或已经关闭的测试服务称为在线预览。
+
+## 2026-10-23 · DSH：拆掉家庭中转站，更新只走 GitHub
+
+用户明确表示不知道、也不需要「家庭中转站」，批准「拆干净，只留 GitHub 更新」。本轮删除 NAS 安装包下载代理（release mirror）的全部实现，**只改更新路径，不动播放、片库和已发布的 APK**；改动只在本地提交、未推送（推送 main 会触发 CI 打包，用户尚未批准）。
+
+### 删除的东西
+
+- [UpdateManager.kt](<nativeapp/src/main/java/tv/hdao/app/update/UpdateManager.kt>)：删掉 `ReleaseSource`、`MirrorSettings`、`MIRROR_PROBE_INTERVAL_MS`、`MIRROR_TIMEOUT_SECONDS`、`mirrorSettings()`、`sourcesFor()`、`normalizeMirrorBase()`、`cleartextBlockedReason()` 与镜像探测状态；`checkForUpdate()`、`latestFromApi()`、`latestFromRedirect()`、`remoteApkSize()`、`releaseDownloadUrl()`、`tagFromReleaseLocation()`、`releaseForVersion()`、`requireTrustedReleaseUrl()` 全部去掉 `base`/`source` 参数，只认 `GITHUB_BASE`，tag 与下载地址必须是 `https://github.com` 且落在本项目 release 路径下。
+- [UpdateViewModel.kt](<nativeapp/src/main/java/tv/hdao/app/update/UpdateViewModel.kt>)：`manager.checkForUpdate()` 不再传镜像设置。
+- [UpdateManagerTest.kt](<nativeapp/src/test/java/tv/hdao/app/update/UpdateManagerTest.kt>)：删除 6 条镜像/明文白名单测试及其配置解析辅助；保留版本、校验和、tag、资产命名与地址校验测试，并新增「http 的 github.com 和非 GitHub 主机都不算发布页」断言。
+- [network_security_config.xml](<nativeapp/src/main/res/xml/network_security_config.xml>)：删除放行明文的 `domain-config`（`10.0.0.104`、`local`），全局 `cleartextTrafficPermitted="false"`。已核对电视端所有网络出口都是 https（`hdao.tv/api`、`stream.hdao.tv`、`image.tmdb.org`），不影响播放。
+- [build.gradle.kts](<nativeapp/build.gradle.kts>)：删掉 `hazixMirrorBase` 属性与 `BuildConfig.MIRROR_BASE_URL`。
+- [ci.yml](<.github/workflows/ci.yml>)：单测不再传 `-PhazixMirrorBase`。
+- [release-apks.yml](<.github/workflows/release-apks.yml>)：构建不再传 `-PhazixMirrorBase`；删除 `Warm the NAS mirror` 步骤。
+- 删除 `tools/nas-release-proxy.mjs`、`tools/nas-release-proxy.Dockerfile`、`tools/README-nas-mirror.md`；历史说明见本文件 2026-09-19 条目与 CHANGELOG 3.7.0/3.7.1。
+- 运行期覆盖镜像地址的 `update_mirror` 偏好入口随 `mirrorSettings()` 一起删除，现已无法再指向局域网地址。
+
+### 仍需用户手动处理
+
+- GitHub 仓库变量 `NAS_MIRROR_BASE` 已没有任何 workflow 读取，留着不影响构建，可自行清空。
+- NAS（10.0.0.104）上的中转容器本轮没有动，需要用户自行停用/删除。
+- 已发布的 v3.7.5 及更早 APK 里仍烧着 `10.0.0.104:18088`，只有新版本才不含；`dist/` 中旧包按规则保留。
+
+### 验证与边界
+
+- 本机仍然编译不了 Kotlin（中文路径问题见本文件 2026-09-21/09-25 记录），**未编译、未跑单测**；只能靠云端 CI 验证，因此本轮不推送，避免顺带触发打包。
+- 推送前应确认 CI 的 `Unit tests` 步骤在没有 `-PhazixMirrorBase` 时仍通过（应只剩版本、校验和与 URL 校验类测试）。
+- 另一个会话（2026-10-21 UI 同步与 3.8.0 准备）留在工作区的改动本轮**没有提交、没有改动**；其中 [release-apks.yml](<.github/workflows/release-apks.yml>) 与本轮同文件，提交时先把该文件还原到 HEAD、只提交镜像删除，再用 `git apply --3way` 把它的改动放回工作区。
+- 未改 CHANGELOG：工作区里那份未提交的 3.8.0 段落与另一会话纠缠，等它提交后再补一条「更新只走 GitHub」。

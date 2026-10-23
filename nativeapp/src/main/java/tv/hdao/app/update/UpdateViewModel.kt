@@ -65,7 +65,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
             // keep offering it when GitHub cannot be reached at all.
             val cached = runCatching { manager.cachedUpdate() }.getOrNull()
             val outcome = runCatching {
-                manager.checkForUpdate(runCatching { manager.mirrorSettings() }.getOrNull())
+                manager.checkForUpdate()
             }
             val release = outcome.getOrNull()
             mutableState.value = when {

@@ -1,26 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Cleartext HTTP is allowed only for the mirror hosts the app really talks to,
-  because the optional NAS release mirror (see tools/nas-release-proxy.mjs) is
-  reached over plain http at a private address. Everything else, including
-  GitHub, must still use HTTPS: this file replaces the old blanket
-  android:usesCleartextTraffic="false" instead of opening the whole app up.
-
-  A <domain> entry is matched as a literal hostname, or as a hostname suffix
-  when includeSubdomains is set - see ApplicationConfig.getConfigForHostname in
-  AOSP:
-  https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/security/net/config/ApplicationConfig.java
-  Android has no CIDR support, so a private range cannot be expressed here.
-  Writing "10.0.0.0/8" looks like a rule but is compared as the literal string
-  "10.0.0.0/8" and never matches an address; the request is then refused as
-  cleartext. v3.7.1 shipped exactly those ranges, which silently disabled the
-  mirror (the fallback to GitHub hid it), so the hosts are listed one by one
-  here and UpdateManagerTest asserts the address CI bakes in is listed.
-
-  The mirror address can also be changed at runtime through the `update_mirror`
-  preferences, but this file is fixed at build time: a host that is not listed
-  below cannot be reached over http. UpdateManager logs that instead of letting
-  the mirror fail unnoticed - a changed address needs a new entry here.
+  Everything the app fetches — the release APK on github.com and the catalogue
+  and media from the content host — is served over HTTPS, so cleartext HTTP is
+  refused for every host. This file replaces the old blanket
+  android:usesCleartextTraffic="false" and keeps the policy explicit in one
+  place: no <domain-config> block is present, and none should be added for an
+  update source, because the updater only ever talks to GitHub.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
@@ -28,11 +13,4 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <!-- The household NAS release mirror, as baked in by CI from the
-             NAS_MIRROR_BASE repository variable. -->
-        <domain includeSubdomains="true">10.0.0.104</domain>
-        <!-- mDNS names such as nas.local. -->
-        <domain includeSubdomains="true">local</domain>
-    </domain-config>
 </network-security-config>
