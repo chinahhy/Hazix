@@ -118,6 +118,7 @@ jobs:
         run: >-
           ./gradlew
           :nativeapp:testDebugUnitTest
+          :mobileapp:testDebugUnitTest
           :nativeapp:lintRelease
           :nativeapp:assembleRelease
           :mobileapp:lintRelease
@@ -131,6 +132,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
           HAZIX_RELEASE_KEYSTORE: ${{ runner.temp }}/hazix-release.keystore
         run: |
           mkdir -p release
@@ -140,13 +142,23 @@ jobs:
           # Both apps must be signed by the same key as the installed builds,
           # otherwise the TV in-app updater and phone upgrades both fail.
           for APK in "release/Hazix-TV-v${VERSION}.apk" "release/Hazix-Mobile-v${VERSION}.apk"; do
-            "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --verbose "${APK}"
+            "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 23 "${APK}"
             APK_SIGNER_SHA256=$(
               "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --print-certs "${APK}" |
                 awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2}'
             )
             if [[ "${APK_SIGNER_SHA256}" != "${EXPECTED_SIGNER_SHA256}" ]]; then
               echo "::error::${APK} signer does not match the installed-app upgrade chain"
+              exit 1
+            fi
+            BADGING=$("${ANDROID_HOME}/build-tools/35.0.0/aapt" dump badging "${APK}")
+            ACTUAL_PACKAGE=$(printf '%s\n' "${BADGING}" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+            ACTUAL_VERSION=$(printf '%s\n' "${BADGING}" | sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p")
+            ACTUAL_CODE=$(printf '%s\n' "${BADGING}" | sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p")
+            EXPECTED_PACKAGE="tv.hdao.app"
+            if [[ "${APK}" == *Hazix-Mobile-* ]]; then EXPECTED_PACKAGE="tv.hdao.mobile"; fi
+            if [[ "${ACTUAL_PACKAGE}" != "${EXPECTED_PACKAGE}" || "${ACTUAL_VERSION}" != "${VERSION}" || "${ACTUAL_CODE}" != "${VERSION_CODE}" ]]; then
+              echo "::error::${APK} package/version mismatch: ${ACTUAL_PACKAGE} ${ACTUAL_VERSION} (${ACTUAL_CODE})"
               exit 1
             fi
           done
