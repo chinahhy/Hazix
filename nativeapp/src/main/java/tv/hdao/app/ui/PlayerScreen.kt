@@ -347,7 +347,7 @@ private fun NativePlayer(
             modifier = Modifier.fillMaxSize(),
         )
 
-        if (buffering) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Gold)
+        if (buffering) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Accent)
 
         if (controlsVisible) {
             Box(
@@ -378,7 +378,7 @@ private fun NativePlayer(
                     Spacer(Modifier.height(15.dp))
                     Box(Modifier.fillMaxWidth().height(5.dp).background(Color(0xFF50545D))) {
                         val fraction = if (duration > 0L) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
-                        Box(Modifier.fillMaxWidth(fraction).height(5.dp).background(Gold))
+                        Box(Modifier.fillMaxWidth(fraction).height(5.dp).background(Accent))
                     }
                 }
             }
@@ -399,7 +399,7 @@ private fun NativePlayer(
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("播放失败", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Text(it, color = Color(0xFFBFC3CC), modifier = Modifier.padding(top = 8.dp))
-                Text("按返回键退出后重试", color = Gold, modifier = Modifier.padding(top = 15.dp))
+                Text("按返回键退出后重试", color = Accent, modifier = Modifier.padding(top = 15.dp))
             }
         }
 

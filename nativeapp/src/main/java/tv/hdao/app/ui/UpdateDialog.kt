@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,8 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,9 +24,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -153,22 +154,34 @@ private fun UpdatePrompt(
     onDismiss: () -> Unit,
 ) {
     val confirmFocus = remember { FocusRequester() }
-    LaunchedEffect(title, confirmLabel) {
-        if (confirmLabel != null) {
-            delay(120L)
-            runCatching { confirmFocus.requestFocus() }
+    val dismissFocus = remember { FocusRequester() }
+    val progressFocus = remember { FocusRequester() }
+    val hasConfirm = confirmLabel != null && onConfirm != null
+    val initialFocus = when {
+        hasConfirm -> confirmFocus
+        dismissLabel != null -> dismissFocus
+        else -> progressFocus
+    }
+    LaunchedEffect(title, initialFocus) {
+        repeat(5) {
+            withFrameNanos { }
+            if (runCatching { initialFocus.requestFocus() }.isSuccess) return@LaunchedEffect
         }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
-            Column {
+            Column(
+                if (!hasConfirm && dismissLabel == null) {
+                    Modifier.focusRequester(progressFocus).focusable()
+                } else Modifier,
+            ) {
                 Text(
                     message,
-                    color = Color(0xFFD5D8DE),
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
+                    color = Color(0xFFD5D5D5),
+                    fontSize = 17.sp,
+                    lineHeight = 24.sp,
                     maxLines = 8,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -177,7 +190,7 @@ private fun UpdatePrompt(
                     LinearProgressIndicator(
                         progress = { it / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        color = Gold,
+                        color = Accent,
                     )
                     Text("$it%", Modifier.padding(top = 7.dp), color = Muted)
                 }
@@ -186,26 +199,41 @@ private fun UpdatePrompt(
         confirmButton = {
             Row(horizontalArrangement = Arrangement.End) {
                 if (dismissLabel != null) {
-                    Button(
+                    TvButton(
+                        text = dismissLabel,
                         onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(containerColor = Panel),
-                    ) { Text(dismissLabel) }
+                        modifier = Modifier.focusRequester(dismissFocus).focusProperties {
+                            val other = if (hasConfirm) confirmFocus else dismissFocus
+                            left = other
+                            right = other
+                            up = dismissFocus
+                            down = dismissFocus
+                            next = other
+                            previous = other
+                        },
+                    )
                     Spacer(Modifier.width(10.dp))
                 }
                 if (confirmLabel != null && onConfirm != null) {
-                    Button(
+                    TvButton(
+                        text = confirmLabel,
+                        primary = true,
                         onClick = onConfirm,
-                        modifier = Modifier.focusRequester(confirmFocus),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Gold,
-                            contentColor = Ink,
-                        ),
-                    ) { Text(confirmLabel, fontWeight = FontWeight.Bold) }
+                        modifier = Modifier.focusRequester(confirmFocus).focusProperties {
+                            val other = if (dismissLabel != null) dismissFocus else confirmFocus
+                            left = other
+                            right = other
+                            up = confirmFocus
+                            down = confirmFocus
+                            next = other
+                            previous = other
+                        },
+                    )
                 }
             }
         },
         dismissButton = {},
-        containerColor = Color(0xFF171B24),
+        containerColor = Panel,
         titleContentColor = Color.White,
         textContentColor = Color.White,
     )

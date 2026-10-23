@@ -23,10 +23,11 @@ and the provider's website is never loaded.
 
 **Living room (Android TV / Google TV)**
 
-- Cinematic home screen: the newest three films and three series rotate as hero
-  posters, and focus drives the backdrop, detail panel, and a muted auto-preview.
-- Seven catalogue entries in the top bar — Movies, Series, Variety, Documentary,
-  Anime, Short Drama — plus search and a manual **Check for updates** entry.
+- Cinematic home screen: curated recommendations drive the backdrop, detail panel,
+  and muted preview; the hero and poster shelf fill the first screen, with Continue
+  watching below the fold.
+- Top navigation — Home, Movies, Series, Variety, Documentary, Anime, Short Drama —
+  plus search; updates are checked in the background and prompt only when available.
 - Category, home and search all keep their state across a detail page: the scroll
   position, the cursor on the poster that was opened, and the search query with
   its results.
@@ -43,9 +44,12 @@ and the provider's website is never loaded.
 
 - Touch home screen with a hero carousel that advances every six seconds and
   responds to horizontal swipes.
-- Search, catalogue browsing, detail pages, episode selection, and player.
-- Series entry covering five sub-categories (series, variety, documentary, anime,
-  short drama).
+- Six direct home categories, search, catalogue browsing, detail pages, episode
+  selection, and player.
+- First-screen hero/poster shelf with Continue watching below; detail pages put
+  playback first, with an expandable three-line synopsis.
+- The Series entry retains five sub-categories (series, variety, documentary,
+  anime, short drama).
 
 **Shared**
 
@@ -55,7 +59,8 @@ and the provider's website is never loaded.
   recent episode per program.
 - Encrypted DNS (DNS-over-HTTPS) with a plain-DNS fallback for networks that block
   it.
-- Same launcher identity and dark/gold visual language on both form factors.
+- Shared launcher identity, dark backgrounds, white/gray typography and controls,
+  and neutral rating badges on both form factors.
 
 ## Project layout
 

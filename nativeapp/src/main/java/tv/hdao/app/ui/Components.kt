@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -274,10 +275,10 @@ private fun LandscapeVodCard(
                 focused = it.isFocused
                 if (it.isFocused) onFocused()
             }
-            .clip(RoundedCornerShape(7.dp))
+            .clip(RoundedCornerShape(4.dp))
             .border(
-                if (focused) BorderStroke(2.dp, Gold) else BorderStroke(1.dp, Color(0xFF2F333B)),
-                RoundedCornerShape(7.dp),
+                if (focused) BorderStroke(2.dp, Accent) else BorderStroke(1.dp, Color(0xFF333333)),
+                RoundedCornerShape(4.dp),
             )
             .background(Panel)
             .clickable(onClick = onClick)
@@ -296,13 +297,13 @@ private fun LandscapeVodCard(
         )
         vod.score?.let { score ->
             Text(
-                text = "★ $score",
+                text = score,
                 modifier = Modifier.align(Alignment.TopEnd)
                     .padding(7.dp)
-                    .background(Color(0xDD090B10), RoundedCornerShape(4.dp))
+                    .background(Color(0xDD000000), RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 3.dp),
-                color = Gold,
-                fontSize = 10.sp,
+                color = Accent,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -310,13 +311,14 @@ private fun LandscapeVodCard(
             Text(
                 vod.title,
                 color = Color.White,
-                fontSize = 14.sp,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             vod.remarks?.let {
-                Text(it, color = Color(0xFFD1D4DA), fontSize = 10.sp, maxLines = 1)
+                Text(it, color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -423,10 +425,10 @@ private fun ContinueWatchingCard(entry: WatchEntry, onClick: () -> Unit, modifie
     Box(
         modifier = modifier.width(190.dp).height(107.dp).scale(scale)
             .onFocusChanged { focused = it.isFocused }
-            .clip(RoundedCornerShape(7.dp))
+            .clip(RoundedCornerShape(4.dp))
             .border(
-                if (focused) BorderStroke(2.dp, Gold) else BorderStroke(1.dp, Color(0xFF2F333B)),
-                RoundedCornerShape(7.dp),
+                if (focused) BorderStroke(2.dp, Accent) else BorderStroke(1.dp, Color(0xFF333333)),
+                RoundedCornerShape(4.dp),
             )
             .background(Panel)
             .clickable(onClick = onClick)
@@ -440,13 +442,20 @@ private fun ContinueWatchingCard(entry: WatchEntry, onClick: () -> Unit, modifie
         )
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE5000000)))))
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(entry.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            // Remains visible without focus; the whole card is the continue action.
+            Text(
+                entry.title, color = Color.White, fontSize = 16.sp, lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
             if (entry.episodeName.isNotBlank()) {
-                Text(entry.episodeName, color = Color(0xFFC8CBD2), fontSize = 10.sp, maxLines = 1)
+                Text(
+                    entry.episodeName, color = Color(0xFFCCCCCC), fontSize = 14.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
             Spacer(Modifier.height(5.dp))
             Box(Modifier.fillMaxWidth().height(3.dp).background(Color(0xFF4B4E55))) {
-                Box(Modifier.fillMaxWidth(entry.fraction).height(3.dp).background(Gold))
+                Box(Modifier.fillMaxWidth(entry.fraction).height(3.dp).background(Accent))
             }
         }
     }
@@ -461,7 +470,8 @@ fun PosterCard(
     cardWidth: Dp = 142.dp,
     cardHeight: Dp = 200.dp,
     focusedScale: Float = 1.07f,
-    focusBorderColor: Color = Gold,
+    focusBorderColor: Color = Accent,
+    selected: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) focusedScale else 1f, label = "posterScale")
@@ -472,10 +482,14 @@ fun PosterCard(
                     focused = it.isFocused
                     if (it.isFocused) onFocused()
                 }
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .border(
-                    if (focused) BorderStroke(3.dp, focusBorderColor) else BorderStroke(1.dp, Color(0xFF343947)),
-                    RoundedCornerShape(8.dp),
+                    when {
+                        focused -> BorderStroke(3.dp, focusBorderColor)
+                        selected -> BorderStroke(1.dp, Color(0xFF999999))
+                        else -> BorderStroke(1.dp, Color(0xFF343434))
+                    },
+                    RoundedCornerShape(4.dp),
                 )
                 .background(Panel)
                 .clickable(onClick = onClick)
@@ -491,21 +505,21 @@ fun PosterCard(
             vod.remarks?.let {
                 Text(
                     it,
-                    modifier = Modifier.align(Alignment.BottomEnd).background(Color(0xCC090B10)).padding(5.dp),
-                    color = Gold,
-                    fontSize = 10.sp,
+                    modifier = Modifier.align(Alignment.BottomEnd).background(Color(0xCC000000)).padding(5.dp),
+                    color = Accent,
+                    fontSize = 12.sp,
                     maxLines = 1,
                 )
             }
             vod.score?.let { score ->
                 Text(
-                    text = "★ $score",
+                    text = score,
                     modifier = Modifier.align(Alignment.TopStart)
                         .padding(7.dp)
-                        .background(Color(0xDD090B10), RoundedCornerShape(4.dp))
+                        .background(Color(0xDD000000), RoundedCornerShape(4.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
-                    color = Gold,
-                    fontSize = 10.sp,
+                    color = Accent,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -513,8 +527,10 @@ fun PosterCard(
         Text(
             vod.title,
             modifier = Modifier.padding(top = 7.dp),
-            color = if (focused) Color.White else Color(0xFFD2D5DC),
-            fontSize = 13.sp,
+            // Selection follows the hero even when remote focus leaves the rail.
+            color = if (focused || selected) Color.White else Color(0xFFD2D5DC),
+            fontSize = 15.sp,
+            lineHeight = 22.sp,
             fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -533,28 +549,31 @@ fun TvButton(
     var focused by remember { mutableStateOf(false) }
     val color by animateColorAsState(
         when {
-            focused -> Color.White
-            primary -> Gold
-            else -> Color(0xD6252931)
+            focused -> Color(0xFFE0E0E0)
+            primary -> Accent
+            else -> Color(0xB36D6D6E)
         },
         label = "buttonColor",
     )
     Surface(
-        modifier = modifier.onFocusChanged { focused = it.isFocused }.focusable(),
+        // Clickable Surface already owns a focus target; adding another one
+        // creates a stop that has no click action (especially inside dialogs).
+        modifier = modifier.onFocusChanged { focused = it.isFocused },
         onClick = onClick,
         color = color,
         contentColor = if (focused || primary) Ink else Color.White,
-        shape = RoundedCornerShape(7.dp),
+        shape = RoundedCornerShape(4.dp),
+        border = if (focused) BorderStroke(2.dp, Accent) else null,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.heightIn(min = 44.dp).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(7.dp))
             }
-            Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(text, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
 }
@@ -590,7 +609,7 @@ fun TvIconButton(
 fun LoadingView(message: String = "正在加载…", modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(360.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(Modifier.size(34.dp), color = Gold)
+            CircularProgressIndicator(Modifier.size(34.dp), color = Accent)
             Spacer(Modifier.height(15.dp))
             Text(message, color = Muted)
         }

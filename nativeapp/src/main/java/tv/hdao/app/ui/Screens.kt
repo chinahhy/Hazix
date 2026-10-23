@@ -8,6 +8,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -61,6 +62,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -233,53 +238,61 @@ private fun HomeCatalog(
             }
         }
     }
-    LazyColumn(
-        state = state.listState,
-        modifier = Modifier.fillMaxSize().background(Ink),
-        contentPadding = PaddingValues(bottom = 42.dp),
-    ) {
-        item(key = "home-hero") {
-            HomePosterCarousel(
-                modifier = Modifier.fillParentMaxHeight(),
-                heroVods = heroVods,
-                posterVods = featuredPosters,
-                repository = repository,
-                railState = state.railState,
-                lastOpenedVodId = state.lastOpenedVodId,
-                onVodClick = onVodClick,
-                onRailVodClick = { vod ->
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val layout = homeLayout(maxHeight.value, LocalDensity.current.fontScale)
+        LazyColumn(
+            state = state.listState,
+            modifier = Modifier.fillMaxSize().background(Ink),
+            contentPadding = PaddingValues(bottom = 42.dp),
+        ) {
+            item(key = "home-hero") {
+                val openDetails: (Vod) -> Unit = { vod ->
                     state.lastOpenedVodId = vod.vodId
                     onVodClick(vod)
-                },
-                onPlay = onPlay,
-                initialPosterFocusRequester = contentFocusRequester,
-                navigationFocusRequester = navigationFocusRequester,
-                onPosterDown = showContinueWatching,
-            )
-        }
-        item(key = "recent-watching") {
-            Column {
-                Spacer(Modifier.height(48.dp))
-                ContinueWatchingRow(
-                    entries = continueEntries,
-                    onClick = onContinue,
-                    navigationFocusRequester = null,
-                    firstItemFocusRequester = continueWatchingFocusRequester,
-                    contentStart = 42.dp,
-                    listState = state.continueState,
+                }
+                HomePosterCarousel(
+                    modifier = Modifier.height(layout.firstScreenHeightDp.dp),
+                    layout = layout,
+                    heroVods = heroVods,
+                    posterVods = featuredPosters,
+                    repository = repository,
+                    railState = state.railState,
+                    lastOpenedVodId = state.lastOpenedVodId,
+                    onVodClick = openDetails,
+                    onRailVodClick = openDetails,
+                    onPlay = { vod ->
+                        state.lastOpenedVodId = vod.vodId
+                        onPlay(vod)
+                    },
+                    initialPosterFocusRequester = contentFocusRequester,
+                    navigationFocusRequester = navigationFocusRequester,
+                    onPosterDown = showContinueWatching,
                 )
             }
-        }
-        if (favoriteItems.isNotEmpty()) {
-            item(key = "favorites") {
-                LandscapeVodRow(
-                    title = "我的收藏",
-                    items = favoriteItems,
-                    onVodClick = onVodClick,
-                    navigationFocusRequester = navigationFocusRequester,
-                    contentStart = 42.dp,
-                    listState = state.favoritesState,
-                )
+            item(key = "recent-watching") {
+                Column {
+                    Spacer(Modifier.height(48.dp))
+                    ContinueWatchingRow(
+                        entries = continueEntries,
+                        onClick = onContinue,
+                        navigationFocusRequester = null,
+                        firstItemFocusRequester = continueWatchingFocusRequester,
+                        contentStart = 42.dp,
+                        listState = state.continueState,
+                    )
+                }
+            }
+            if (favoriteItems.isNotEmpty()) {
+                item(key = "favorites") {
+                    LandscapeVodRow(
+                        title = "我的收藏",
+                        items = favoriteItems,
+                        onVodClick = onVodClick,
+                        navigationFocusRequester = navigationFocusRequester,
+                        contentStart = 42.dp,
+                        listState = state.favoritesState,
+                    )
+                }
             }
         }
     }
@@ -288,6 +301,7 @@ private fun HomeCatalog(
 @Composable
 private fun HomePosterCarousel(
     modifier: Modifier,
+    layout: HomeLayout,
     heroVods: List<Vod>,
     posterVods: List<Vod>,
     repository: HdaoRepository,
@@ -376,9 +390,9 @@ private fun HomePosterCarousel(
             Modifier.matchParentSize().background(
                 Brush.horizontalGradient(
                     0f to Ink,
-                    0.24f to Color(0xF0080A0E),
-                    0.56f to Color(0x96080A0E),
-                    0.78f to Color(0x22080A0E),
+                    0.24f to Color(0xF0000000),
+                    0.56f to Color(0x96000000),
+                    0.78f to Color(0x22000000),
                     1f to Color.Transparent,
                 )
             )
@@ -386,41 +400,51 @@ private fun HomePosterCarousel(
         Box(
             Modifier.matchParentSize().background(
                 Brush.verticalGradient(
-                    0f to Color(0x4D06090D),
+                    0f to Color(0x4D000000),
                     0.52f to Color.Transparent,
-                    0.72f to Color(0xB3090B10),
+                    0.72f to Color(0xB3000000),
                     1f to Ink,
                 )
             )
         )
 
-        Crossfade(
-            targetState = selectedVod,
-            animationSpec = tween(220),
-            label = "homeDetails",
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 42.dp, top = 82.dp).width(470.dp),
-        ) { vod ->
-            HomeFeaturedDetails(
-                vod = vod,
-                onPlay = { onPlay(vod) },
-                onMoreInfo = { onVodClick(vod) },
-                navigationFocusRequester = navigationFocusRequester,
-                onActionsFocusChanged = { actionsHaveFocus = it },
-            )
-        }
-
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
+        // Copy and shelf share one measured column: long copy cannot overlap a
+        // separately bottom-aligned rail, even at 240dpi or larger system fonts.
+        Column(Modifier.fillMaxSize().padding(top = layout.topInsetDp.dp)) {
+            Box(
+                Modifier.fillMaxWidth().weight(1f)
+                    .padding(start = 42.dp, end = 42.dp, bottom = layout.copyGapDp.dp),
+                contentAlignment = Alignment.BottomStart,
+            ) {
+                Crossfade(
+                    targetState = selectedVod,
+                    animationSpec = tween(220),
+                    label = "homeDetails",
+                    modifier = Modifier.width(520.dp),
+                ) { vod ->
+                    HomeFeaturedDetails(
+                        vod = vod,
+                        layout = layout,
+                        onPlay = { onPlay(vod) },
+                        onMoreInfo = { onVodClick(vod) },
+                        navigationFocusRequester = navigationFocusRequester,
+                        posterFocusRequester = initialPosterFocusRequester,
+                        onActionsFocusChanged = { actionsHaveFocus = it },
+                    )
+                }
+            }
             Text(
                 "最近热播",
-                modifier = Modifier.padding(start = 42.dp, bottom = 3.dp),
+                modifier = Modifier.padding(start = 42.dp, bottom = 4.dp),
                 color = Color.White,
-                fontSize = 18.sp,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
                 fontWeight = FontWeight.Black,
             )
             LazyRow(
                 state = railState,
                 modifier = Modifier.onFocusChanged { postersHaveFocus = it.hasFocus }.focusGroup(),
-                contentPadding = PaddingValues(start = 42.dp, end = 28.dp, top = 5.dp, bottom = 13.dp),
+                contentPadding = PaddingValues(start = 42.dp, end = 28.dp, top = 16.dp, bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 rowItemsIndexed(posterVods, key = { index, vod -> "home-poster:${vod.vodId}:$index" }) { index, vod ->
@@ -441,10 +465,11 @@ private fun HomePosterCarousel(
                         onClick = { onRailVodClick(vod) },
                         onFocused = { selectedVod = vod },
                         modifier = focusModifier,
-                        cardWidth = 132.dp,
-                        cardHeight = 186.dp,
+                        cardWidth = layout.posterWidthDp.dp,
+                        cardHeight = layout.posterHeightDp.dp,
                         focusedScale = 1.10f,
                         focusBorderColor = Color.White,
+                        selected = vod.vodId == selectedVod.vodId,
                     )
                 }
             }
@@ -455,64 +480,87 @@ private fun HomePosterCarousel(
 @Composable
 private fun HomeFeaturedDetails(
     vod: Vod,
+    layout: HomeLayout,
     onPlay: () -> Unit,
     onMoreInfo: () -> Unit,
     navigationFocusRequester: FocusRequester,
+    posterFocusRequester: FocusRequester,
     onActionsFocusChanged: (Boolean) -> Unit,
 ) {
     Column {
         Text(
             vod.title,
             color = Color.White,
-            fontSize = 38.sp,
+            fontSize = layout.titleSizeSp.sp,
+            lineHeight = layout.titleLineHeightSp.sp,
             fontWeight = FontWeight.Black,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.height(6.dp))
-        val metadata = listOfNotNull(vod.year, vod.area, vod.mediaType, vod.score?.let { "★ $it" })
-            .filter { it.isNotBlank() }
-            .joinToString("  ·  ")
-        if (metadata.isNotEmpty()) {
-            Text(
-                metadata,
-                color = Gold,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(layout.titleMetadataGapDp.dp))
+        VodMetadata(vod)
+        if (layout.descriptionMaxLines > 0) {
+            vod.description?.takeIf { it.isNotBlank() }?.let { description ->
+                Spacer(Modifier.height(layout.metadataDescriptionGapDp.dp))
+                Text(
+                    description,
+                    color = Color(0xFFDDDDDD),
+                    fontSize = layout.descriptionSizeSp.sp,
+                    lineHeight = layout.descriptionLineHeightSp.sp,
+                    maxLines = layout.descriptionMaxLines,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-        vod.description?.takeIf { it.isNotBlank() }?.let { description ->
-            Text(
-                description,
-                color = Color(0xFFE0E2E6),
-                fontSize = 15.sp,
-                lineHeight = 21.sp,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(13.dp))
-        }
+        Spacer(Modifier.height(layout.actionsGapDp.dp))
         Row(
             modifier = Modifier.onFocusChanged { onActionsFocusChanged(it.hasFocus) }.focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            val actionFocus = Modifier.focusProperties {
+                up = navigationFocusRequester
+                down = posterFocusRequester
+            }
             TvButton(
                 text = "播放",
                 primary = true,
                 icon = PlayIcon,
                 onClick = onPlay,
-                modifier = Modifier.focusProperties { up = navigationFocusRequester },
+                modifier = actionFocus,
             )
             TvButton(
                 text = "更多信息",
                 icon = InfoIcon,
                 onClick = onMoreInfo,
-                modifier = Modifier.focusProperties { up = navigationFocusRequester },
+                modifier = actionFocus,
             )
         }
+    }
+}
+
+@Composable
+private fun VodMetadata(vod: Vod, modifier: Modifier = Modifier) {
+    val text = buildAnnotatedString {
+        vod.score?.takeIf { it.isNotBlank() }?.let { score ->
+            withStyle(SpanStyle(color = Rating, fontWeight = FontWeight.Bold)) { append(score) }
+        }
+        listOfNotNull(vod.year, vod.area, vod.genres ?: vod.mediaType, vod.remarks)
+            .filter { it.isNotBlank() }
+            .forEach { value ->
+                if (length > 0) append("  ·  ")
+                append(value)
+            }
+    }
+    if (text.isNotEmpty()) {
+        Text(
+            text,
+            modifier = modifier,
+            color = Color(0xFFE5E5E5),
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -769,7 +817,7 @@ fun SearchScreen(
                             .background(Panel)
                             .border(
                                 if (fieldFocused) 2.dp else 1.dp,
-                                if (fieldFocused) Gold else Color(0xFF3A404D),
+                                if (fieldFocused) Accent else Color(0xFF3A404D),
                                 RoundedCornerShape(7.dp),
                             )
                             .padding(horizontal = 15.dp),
@@ -884,13 +932,14 @@ private fun DetailContent(
     val vod = detail.item
     val playFocusRequester = remember { FocusRequester() }
     LaunchedEffect(detail.item.vodId) {
-        if (detail.episodes.isNotEmpty()) playFocusRequester.requestFocus()
+        withFrameNanos { }
+        runCatching { playFocusRequester.requestFocus() }
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 58.dp)) {
         item {
             Box(
                 Modifier.fillMaxWidth().height(420.dp)
-                    .background(Brush.horizontalGradient(listOf(Ink, Color(0xFF151922), Ink)))
+                    .background(Brush.horizontalGradient(listOf(Ink, Panel, Ink)))
             ) {
                 vod.backdropUrl?.let { backdrop ->
                     AsyncImage(
@@ -904,40 +953,47 @@ private fun DetailContent(
                     Modifier.fillMaxSize().background(
                         Brush.horizontalGradient(
                             0f to Ink,
-                            0.56f to Color(0xE8090B10),
-                            1f to Color(0x99090B10),
+                            0.56f to Color(0xE8000000),
+                            1f to Color(0x99000000),
                         )
                     )
                 )
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent, Ink))))
                 Column(Modifier.align(Alignment.CenterStart).width(720.dp).padding(start = 48.dp)) {
-                    Text(vod.title, color = Color.White, fontSize = 39.sp, fontWeight = FontWeight.Black, maxLines = 2)
                     Text(
-                        listOfNotNull(vod.year, vod.area, vod.genres, vod.score?.let { "评分 $it" }).joinToString("  ·  "),
-                        Modifier.padding(top = 10.dp), color = Gold, fontSize = 14.sp,
+                        vod.title, color = Color.White, fontSize = 39.sp, lineHeight = 43.sp,
+                        fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
+                    VodMetadata(vod, Modifier.padding(top = 10.dp))
+                    Row(
+                        Modifier.padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (detail.episodes.isNotEmpty()) {
+                            TvButton(
+                                text = if (detail.episodes.size > 1) "播放第 1 集" else "立即播放",
+                                primary = true,
+                                icon = PlayIcon,
+                                onClick = { onEpisodeClick(0) },
+                                modifier = Modifier.focusRequester(playFocusRequester),
+                            )
+                        }
+                        TvButton(
+                            text = if (isFavorite) "已收藏" else "收藏",
+                            onClick = onToggleFavorite,
+                            modifier = if (detail.episodes.isEmpty()) {
+                                Modifier.focusRequester(playFocusRequester)
+                            } else Modifier,
+                        )
+                    }
                     Text(
                         vod.description ?: "暂无简介",
                         Modifier.padding(top = 14.dp),
-                        color = Color(0xFFD1D5DC),
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp,
-                        maxLines = 5,
+                        color = Color(0xFFD0D0D0),
+                        fontSize = 17.sp,
+                        lineHeight = 24.sp,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
-                    )
-                    if (detail.episodes.isNotEmpty()) {
-                        TvButton(
-                            text = if (detail.episodes.size > 1) "播放第 1 集" else "立即播放",
-                            primary = true,
-                            icon = PlayIcon,
-                            onClick = { onEpisodeClick(0) },
-                            modifier = Modifier.padding(top = 20.dp).focusRequester(playFocusRequester),
-                        )
-                    }
-                    TvButton(
-                        text = if (isFavorite) "已收藏" else "收藏",
-                        onClick = onToggleFavorite,
-                        modifier = Modifier.padding(top = 10.dp),
                     )
                 }
                 Box(
@@ -978,7 +1034,7 @@ private fun DetailContent(
             }
         }
         if (detail.related.isNotEmpty()) {
-            item { LandscapeVodRow("相关推荐", detail.related, onVodClick) }
+            item { LandscapeVodRow("相关推荐", detail.related, onVodClick, contentStart = 48.dp) }
         }
     }
 }

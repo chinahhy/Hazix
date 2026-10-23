@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -86,7 +87,7 @@ fun MobilePlayerScreen(
     when {
         error != null -> MobilePlayerMessage(error!!, "重新加载") { retry++ }
         detail == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = MobileGold)
+            CircularProgressIndicator(color = MobileAccent)
         }
         detail!!.episodes.isEmpty() -> MobilePlayerMessage("该内容暂无可播放剧集", "返回", onBack)
         else -> MobileNativePlayer(detail!!, initialEpisodeIndex, watchProgress, onBack)
@@ -104,8 +105,8 @@ private fun MobileNativePlayer(
     val context = LocalContext.current
     val activity = context as? Activity
     val episodes = detail.episodes
-    var episodeIndex by remember { mutableIntStateOf(initialEpisodeIndex.coerceIn(episodes.indices)) }
-    val episode = episodes[episodeIndex]
+    var episodeIndex by remember(detail.item.vodId) { mutableIntStateOf(initialEpisodeIndex.coerceIn(episodes.indices)) }
+    val episode = episodes[episodeIndex.coerceIn(episodes.indices)]
     val player = remember {
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(
@@ -223,14 +224,14 @@ private fun MobileNativePlayer(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (episodeIndex > 0) {
-                    Button(onClick = { switchEpisode(episodeIndex - 1) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xB3151922))) {
+                    Button(onClick = { switchEpisode(episodeIndex - 1) }, modifier = Modifier.heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors(containerColor = MobilePanel.copy(alpha = 0.7f), contentColor = Color.White)) {
                         Icon(Icons.Rounded.SkipPrevious, null)
                         Spacer(Modifier.width(4.dp))
                         Text("上一集")
                     }
                 }
                 if (episodeIndex < episodes.lastIndex) {
-                    Button(onClick = { switchEpisode(episodeIndex + 1) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xB3151922))) {
+                    Button(onClick = { switchEpisode(episodeIndex + 1) }, modifier = Modifier.heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors(containerColor = MobilePanel.copy(alpha = 0.7f), contentColor = Color.White)) {
                         Text("下一集")
                         Spacer(Modifier.width(4.dp))
                         Icon(Icons.Rounded.SkipNext, null)
@@ -238,7 +239,7 @@ private fun MobileNativePlayer(
                 }
             }
         }
-        if (buffering) CircularProgressIndicator(Modifier.align(Alignment.Center), color = MobileGold)
+        if (buffering) CircularProgressIndicator(Modifier.align(Alignment.Center), color = MobileAccent)
         playbackError?.let {
             Text("播放失败：$it", Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(18.dp), color = Color.White)
         }
@@ -250,7 +251,7 @@ private fun MobilePlayerMessage(message: String, action: String, onClick: () -> 
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(message, color = Color.White)
-            Button(onClick = onClick, modifier = Modifier.padding(top = 16.dp)) { Text(action) }
+            Button(onClick = onClick, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text(action) }
         }
     }
 }

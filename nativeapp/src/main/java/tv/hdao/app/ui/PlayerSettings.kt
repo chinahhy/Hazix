@@ -126,7 +126,7 @@ internal fun PlayerSettingsPanel(
     Column(
         modifier.width(430.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xF2181C24))
+            .background(Color(0xF2181818))
             .padding(horizontal = 20.dp, vertical = 18.dp),
     ) {
         Text("播放设置", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -144,17 +144,17 @@ private fun SettingsRow(label: String, value: String, focused: Boolean) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp)
             .clip(RoundedCornerShape(7.dp))
-            .background(if (focused) Color(0xFF2B3140) else Color.Transparent)
+            .background(if (focused) Color(0xFF2F2F2F) else Color.Transparent)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (focused) "▸" else " ", color = Gold, fontSize = 15.sp)
+        Text(if (focused) "▸" else " ", color = Accent, fontSize = 15.sp)
         Spacer(Modifier.width(6.dp))
         Text(label, color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.weight(1f))
         Text(
             value,
-            color = if (focused) Gold else Color(0xFFD5D8DE),
+            color = if (focused) Accent else Color(0xFFD5D8DE),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
         )
